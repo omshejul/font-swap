@@ -40,6 +40,9 @@ async function state(tabId) {
   const frameId = await selectedFrame(tabId);
   const result = await page(tabId,frameId,'state');
   const info = frames.get(tabId);
+  const others=await Promise.allSettled((info?.allowed || [frameId]).filter(id=>id!==frameId).map(async id=>({id,state:await page(tabId,id,'state')})));
+  result.rules=[...(result.rules || []).map(rule=>({...rule,frameId})),...others.flatMap(item=>item.status==='fulfilled' ? (item.value.state.rules || []).map(rule=>({...rule,frameId:item.value.id})) : [])];
+  result.active=result.applied=result.rules.length>0;
   result.tabId = tabId; result.frameId = frameId;
   if(result.picking==='destination') result.warnings.push('Pick a destination in the same document as the origin.');
   if (info?.blocked) result.warnings.push('Some embedded frames are not accessible with this website permission.');
@@ -70,7 +73,14 @@ async function panel(message) {
     if (!prepared.styles.length) throw new Error('No matching text. Pick text or choose a font used on this page.');
     const font = destination.kind === 'google' ? await loadGoogleFont(destination.family,prepared.styles) : null;
     await page(tabId,frameId,'preview',{destination,scope:message.scope,font,revision:prepared.revision});
-  } else if (['source','apply','undo','compare'].includes(action)) {
+  } else if (action==='undo') {
+    const results=await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'undo')));
+    if(results.some(result=>result.status==='rejected')) throw new Error('A frame changed. Reopen Font Swap to restore the remaining swaps.');
+  } else if (action==='remove' || action==='select') {
+    if(!frames.get(tabId).allowed.includes(message.frameId)) throw new Error('This frame is no longer available. Pick text again.');
+    await page(tabId,message.frameId,action,{ruleId:message.ruleId});
+    if(action==='select') { await remember(tabId,message.frameId); await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'cancel'))); }
+  } else if (['source','apply','compare'].includes(action)) {
     await page(tabId,frameId,action,{family:message.family,enabled:message.enabled});
   } else throw new Error('Unknown Font Swap action.');
   const result = await state(tabId);
@@ -91,10 +101,11 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
   })();
   else if (message.type === 'FONT_SWAP_EVENT' && sender.tab) work = (async () => {
     if (message.event === 'picked') {
-      const previous=await selectedFrame(sender.tab.id);
-      if(previous!==sender.frameId) await page(sender.tab.id,previous,'undo').catch(()=>{});
       await remember(sender.tab.id,sender.frameId);
       await Promise.allSettled((frames.get(sender.tab.id)?.allowed || []).filter(id=>id!==sender.frameId).map(id=>page(sender.tab.id,id,'cancel')));
+    } else if(message.event==='destination-picked' && sender.frameId===await selectedFrame(sender.tab.id)) {
+      try { await panel({action:'preview',tabId:sender.tab.id,destination:message.destination,scope:'all'}); }
+      catch(error) { await page(sender.tab.id,sender.frameId,'failure',{error:error.message}).catch(()=>{}); }
     }
     await broadcast(sender.tab.id); return {};
   })();
