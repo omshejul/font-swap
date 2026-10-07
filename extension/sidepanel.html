@@ -1,1 +1,103 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Font Swap</title><link rel="stylesheet" href="sidepanel.css"></head><body><main><h1>Font Swap</h1></main><script src="sidepanel.js" type="module"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Font Swap</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <main class="panel">
+    <header class="panel-header">
+      <h1>Font Swap</h1>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </header>
+
+    <div id="picking" class="notice" hidden>
+      <p id="picking-text"></p>
+      <button type="button" id="picking-cancel" class="button button-small">Cancel</button>
+    </div>
+
+    <section id="view-loading" class="state-view">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>Connecting to this page</p>
+    </section>
+
+    <section id="view-error" class="state-view" hidden>
+      <h2>This page is not available</h2>
+      <p id="error-text" role="alert"></p>
+      <button type="button" id="retry" class="button button-primary">Try again</button>
+    </section>
+
+    <section id="view-empty" class="state-view" hidden>
+      <h2>Pick text on the page</h2>
+      <p>Select any text to see its font and choose a replacement.</p>
+      <button type="button" id="empty-pick" class="button button-primary">Pick text</button>
+      <button type="button" id="empty-manual" class="link-button">Choose a font by name</button>
+      <p id="empty-error" class="field-error" role="alert" hidden></p>
+    </section>
+
+    <div id="view-editor" class="editor" hidden>
+      <section id="source-field" class="field">
+        <div class="field-head">
+          <label for="source-input">Replace</label>
+          <button type="button" id="source-pick" class="button button-small" aria-pressed="false">Pick from page</button>
+        </div>
+        <input id="source-input" class="text-input" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Search page fonts or Google Fonts" aria-describedby="source-note">
+        <div id="source-panel" class="results" hidden>
+          <ul id="source-results" class="result-list" aria-label="Fonts to replace"></ul>
+          <p id="source-note" class="results-note" role="status"></p>
+        </div>
+        <p id="source-error" class="field-error" role="alert" hidden></p>
+        <figure id="snippet" class="snippet" hidden>
+          <blockquote id="snippet-text"></blockquote>
+          <figcaption id="snippet-meta"></figcaption>
+        </figure>
+      </section>
+
+      <section id="dest-field" class="field">
+        <div class="field-head">
+          <label for="dest-input">With</label>
+          <button type="button" id="dest-pick" class="button button-small" aria-pressed="false">Pick from page</button>
+        </div>
+        <div class="input-row">
+          <input id="dest-input" class="text-input" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Search Google Fonts" aria-describedby="dest-note">
+          <label class="visually-hidden" for="dest-category">Category</label>
+          <select id="dest-category" class="select">
+            <option value="all">All styles</option>
+          </select>
+        </div>
+        <div id="dest-panel" class="results" hidden>
+          <ul id="dest-results" class="result-list" aria-label="Replacement fonts"></ul>
+          <p id="dest-note" class="results-note" role="status"></p>
+          <button type="button" id="catalog-retry" class="link-button" hidden>Load the font list again</button>
+        </div>
+        <p id="dest-error" class="field-error" role="alert" hidden></p>
+      </section>
+
+      <fieldset id="scope" class="scope">
+        <legend>Apply to</legend>
+        <label class="radio">
+          <input type="radio" name="scope" id="scope-all" value="all" checked>
+          <span>All matching text</span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="scope" id="scope-element" value="element">
+          <span>Picked element only</span>
+        </label>
+      </fieldset>
+
+      <p id="count" class="count" role="status" hidden></p>
+      <ul id="warnings" class="warnings" hidden></ul>
+
+      <div class="actions">
+        <button type="button" id="apply" class="button button-primary" disabled>Apply</button>
+        <button type="button" id="compare" class="button" aria-pressed="false" disabled>Compare original</button>
+        <button type="button" id="undo" class="button" disabled>Undo</button>
+      </div>
+      <p id="action-error" class="field-error" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="sidepanel.js" type="module"></script>
+</body>
+</html>
