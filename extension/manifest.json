@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Font Swap",
-  "version": "0.1.0",
-  "description": "Pick text and preview Google Fonts or fonts already on the page.",
+  "version": "0.2.0",
+  "description": "Pick a font, choose another, and swap instantly. Change several fonts at once.",
   "minimum_chrome_version": "116",
   "permissions": [
     "activeTab",

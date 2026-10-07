@@ -1,27 +1,21 @@
 # Side panel contract
 
-Plain HTML/CSS/JavaScript extension page. No inline scripts, external JavaScript, or framework. UI-only files: extension/sidepanel.html, sidepanel.css, sidepanel.js.
+Plain HTML/CSS/JavaScript. No inline scripts, remote JavaScript, or framework. UI files are extension/sidepanel.html, .css and .js.
 
-Use chrome.runtime.sendMessage with { type: 'PANEL', action, tabId, ...payload }. Response is { ok: true, state?, catalog?, preview? } or { ok: false, error: 'human readable' }. Commands always return state where appropriate.
+Send {type:'PANEL',action,tabId,...payload} through chrome.runtime.sendMessage. Response is {ok:true,state?,catalog?} or {ok:false,error}. Commands return confirmed state. Never show success before confirmation.
 
-- action 'connect': get active tab via chrome.tabs.query({active:true,currentWindow:true}); inject picker/controller and return state.
-- 'state': refresh current state.
-- 'catalog': return catalog array of {family, category, variants}. Catalog is bundled offline and complete Google Fonts snapshot.
-- 'pick', mode:'source' or 'destination': arm picker in accessible frames.
-- 'source', family:string: select a page family, or choose a catalog font as origin, showing zero matches if absent.
-- 'preview', destination:{kind:'google'|'page',family:string}, scope:'all'|'element': load and preview destination. Debounce search; preview only when selecting a result, not every keystroke. Returns state.
-- 'apply': keep preview, status Applied.
-- 'undo': remove preview rules and restore original page appearance. Returns state.
-- 'compare', enabled:boolean: toggle original view while retaining preview.
-- 'cancel': exit picker.
+- connect, state: return current state. Get tab with chrome.tabs.query({active:true,currentWindow:true}).
+- catalog: bundled array of {family,category,variants}. Search locally. Choose a result to swap, typing alone does nothing.
+- pick {mode:'source'|'destination'}: source picker in accessible frames; destination picker in origin document only. Hover shows visible font name. cancel exits.
+- preview {destination:{kind:'google'|'page',family},scope:'all'}: loads and immediately applies. No Apply step.
+- select {ruleId,frameId}: select existing pair for editing.
+- remove {ruleId,frameId}: remove one pair and preserve the others.
+- undo: restore all pairs in all accessible frames.
 
-State shape:
-{ tabId, url, selection: null | {family, stack, text, tag, weight, style, size, confidence:'css'|'estimated'}, pageFonts:[{family,count}], source:string, destination:null|{kind,family}, scope:'all'|'element', count:number, active:boolean, compared:boolean, applied:boolean, picking:null|'source'|'destination', status:string, warnings:string[], frameId:number }
+State includes {tabId,frameId,url,source,destination,selection,count,pageFonts,active,applied,picking,status,error,warnings,rules:[{id,frameId,source,destination:{kind,family},count}]}. Source is the original CSS family. Destination is null for a new source. Existing pairs persist when picking another source. Choosing a destination for the same source replaces that pair. Rules aggregate accessible frames.
 
-Worker broadcasts {type:'STATE_CHANGED',tabId,state} to extension views after page picks, dynamic updates and operations. Ignore updates for other tabs. On tabs.onActivated reconnect to the active tab and reset panel state. On tabs.onUpdated status complete reconnect if same tab. State getter can be used to refresh after document navigation.
+Listen for STATE_CHANGED {tabId,state}. Reconnect on tabs.onActivated and tabs.onUpdated complete. Ignore stale responses and updates for other tabs. Show state.error and command failures; preserve current swaps on failure. Loading blocks duplicate choices. Use textContent for dynamic text.
 
-Show origin prefilled from click. Both origin and destination have search and Pick from page. Origin suggestions prioritize pageFonts, then full Google Fonts catalog. Destination suggestions filter full catalog by name and can optionally include page fonts. Minimum viable preview samples use lazy loaded FontFace via a separate command 'sample', family:string which returns {ok:true,preview:{family,faces:[{bytes:number[], descriptors:{weight,style,unicodeRange}}]}}. Construct FontFace from binary in panel and add to document.fonts. Load samples only for first few visible results, not the full catalog. Sample loading errors must not block choosing a font, and page preview errors must be shown beside controls.
+The main UI has two numbered picks. First pick text to change. Then search Google Fonts or pick a replacement from the page. A short active-pair list supports editing, removing one pair, Another font, and Undo all. No Apply, Compare, scope radios, category filters, snippets, or metadata. Short picker hint with Cancel. Warnings may use a small disclosure. Keep 320px layout, light/dark themes, focus styles and keyboard search navigation. No all-caps subtitles or em dashes.
 
-Keep controls compact and accessible with native elements and focus styles. Native panel may be 320px wide. Use 'Replace' and 'With', selected text snippet, scope, target count, preview/Apply, Compare original, Undo. Initial empty state 'Pick text on the page' with single primary Pick text action. Loading/errors, no search matches, source absent, offline destination loading and unsupported pages need clear text. Keep existing selections on operation failure. No all-caps eyebrow, gradients, em dashes, or marketing sections. One restrained blue accent, opaque panels, device theme default. Copy should describe product outcomes only.
-
-UI should never optimistically show success before worker confirms. Disable duplicate pending actions and ignore stale sample promises. Unknown tab/restricted URL produces error and useful recovery text. All dynamic text via textContent, not innerHTML.
+The source, apply, compare, element scope and sample actions remain internal compatibility APIs. They are not part of this simplified UI.

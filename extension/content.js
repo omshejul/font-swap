@@ -5,10 +5,11 @@
   const marker = `data-font-swap-${crypto.randomUUID().replaceAll('-','')}`;
   let source = '', destination = null, scope = 'all', selection = null, selectedElement = null;
   let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
-  let revision = 0, cssRule = '', owned = [], fontFaces = [], alias = '', warnings = [], records = [], roots = [];
+  let revision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
+  let tooltip = null, failureMessage = '';
   const observers = new Map();
-  const announce = event => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event}).catch(()=>{});
+  const announce = (event,payload={}) => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event,...payload}).catch(()=>{});
   const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };
   function textOf(element) {
     if (element.matches('input,textarea')) return element.type === 'password' ? '' : (element.value || element.placeholder || '');
@@ -23,7 +24,7 @@
       let element;
       while ((element=walker.nextNode())) {
         if (++visited > 30000) break;
-        if (element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
+        if (element===tooltip || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
         const shadow = shadowOf(element); if (shadow) walk(shadow);
         const text = textOf(element); if (!text) continue;
         const css = getComputedStyle(element);
@@ -40,6 +41,9 @@
     for (const root of roots) if (!observers.has(root)) {
       const observer = new MutationObserver(changes => {
         if (!active) return;
+        changes=changes.filter(change=>change.target!==tooltip && !tooltip?.contains(change.target) &&
+          !([...change.addedNodes,...change.removedNodes].length && [...change.addedNodes,...change.removedNodes].every(node=>node===tooltip)));
+        if (!changes.length) return;
         if (mutating) { dirty=true; return; }
         if (changes.some(change=>change.type!=='attributes' || ['style','class','hidden'].includes(change.attributeName))) schedule();
       });
@@ -48,9 +52,13 @@
     }
   }
   function targets(nextScope=scope) { return records.filter(r=>!r.protected && (nextScope==='element' ? r.element===selectedElement : U.matches(r.stack,source))); }
+  function matchesRule(record,rule) { return !record.protected && (rule.scope==='element' ? record.element===rule.element : U.matches(record.stack,rule.source)); }
+  function ruleFor(record) { return record && rules.findLast(rule=>matchesRule(record,rule)); }
+  function selectedRule() { return rules.findLast(rule=>U.normalize(rule.source)===U.normalize(source) && (rule.scope!=='element' || rule.element===selectedElement)); }
+  function sync() { active=rules.length>0; applied=active; destination=selectedRule()?.destination || null; }
   function currentState() {
     const fonts = new Map(); for (const r of records.filter(r=>!r.protected)) fonts.set(r.family,(fonts.get(r.family)||0)+1);
-    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,warnings:[...new Set(warnings)]};
+    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,count:records.filter(r=>matchesRule(r,rule)).length}))};
   }
   async function stylesheet(remove='',insert='') {
     if (!remove && !insert) return;
@@ -73,7 +81,7 @@
   }
   async function paint() {
     if (!active || compared) return;
-    const chosen = targets();
+    const chosen = records.filter(record=>ruleFor(record));
     // Keep inherited icon glyphs on their original stack when an ancestor swaps.
     const changed=new Set(chosen.map(r=>r.element));
     const guards=records.filter(r=>{
@@ -82,14 +90,15 @@
       while(ancestor) { if(changed.has(ancestor)) return true; ancestor=ancestor.parentElement || ancestor.getRootNode().host; }
       return false;
     });
-    const groups = new Map(); const rules = [];
+    const groups = new Map(); const cssRules = [];
     mutating = true;
     try {
       for (const record of [...chosen,...guards]) {
-        const tail = U.fallback(record.stack,source);
-        const value = record.protected ? record.stack : `${alias ? U.quote(alias) : U.familyCSS(destination.family)}${tail ? ', '+tail : ''}`;
+        const rule=ruleFor(record);
+        const tail = rule && U.fallback(record.stack,rule.source);
+        const value = record.protected ? record.stack : `${rule.alias ? U.quote(rule.alias) : U.familyCSS(rule.destination.family)}${tail ? ', '+tail : ''}`;
         let token = groups.get(value);
-        if (!token && record.root===document) { token = `g${groups.size}`; groups.set(value,token); rules.push(`[${marker}="${token}"] { font-family: ${value} !important; }`); }
+        if (!token && record.root===document) { token = `g${groups.size}`; groups.set(value,token); cssRules.push(`[${marker}="${token}"] { font-family: ${value} !important; }`); }
         const item = {element:record.element,token,inline:record.root!==document,value};
         if (!item.inline) record.element.setAttribute(marker,token);
         if (item.inline) {
@@ -100,7 +109,7 @@
         owned.push(item);
       }
       for (const observer of observers.values()) observer.takeRecords();
-      const next = rules.join('\n'); await stylesheet('',next); cssRule=next;
+      const next = cssRules.join('\n'); await stylesheet('',next); cssRule=next;
     } catch (error) { await clean(); throw error; }
     finally { for (const observer of observers.values()) observer.takeRecords(); mutating=false; if(dirty) { dirty=false; schedule(); } }
     if (scope==='element' && !selectedElement?.isConnected) status='Selected text was removed. Pick it again.';
@@ -114,12 +123,26 @@
     timer=setTimeout(()=>{timer=null;serialize(async()=>{ await refresh(); announce('changed'); }).catch(()=>{});},150);
   }
   function unhighlight() {
+    if (tooltip) { tooltip.remove(); tooltip=null; }
     if (!highlighted) return;
     if (highlighted.style.getPropertyValue('outline')===highlightStyle.applied && highlighted.style.getPropertyPriority('outline')==='important') {
       if (highlightStyle.value) highlighted.style.setProperty('outline',highlightStyle.value,highlightStyle.priority);
       else highlighted.style.removeProperty('outline');
     }
     highlighted=null;
+  }
+  function showName(element,event) {
+    if (!tooltip) {
+      tooltip=document.createElement('div'); tooltip.setAttribute('data-font-swap-tooltip',''); tooltip.setAttribute('role','tooltip');
+      const styles={all:'initial',position:'fixed','z-index':'2147483647','pointer-events':'none',background:'#202124',color:'#fff',font:'14px/1.3 system-ui, sans-serif',padding:'7px 10px','border-radius':'6px','box-shadow':'0 2px 8px #0004','max-width':'calc(100vw - 16px)','white-space':'nowrap',overflow:'hidden','text-overflow':'ellipsis'};
+      for (const [key,value] of Object.entries(styles)) tooltip.style.setProperty(key,value,'important');
+      document.documentElement.append(tooltip);
+    }
+    const record=records.find(r=>r.element===element);
+    tooltip.textContent=(!compared && ruleFor(record)?.destination.family) || record?.family || U.parseStack(getComputedStyle(element).fontFamily)[0];
+    const bounds=tooltip.getBoundingClientRect();
+    tooltip.style.setProperty('left',`${Math.max(8,Math.min(event.clientX+14,innerWidth-bounds.width-8))}px`,'important');
+    tooltip.style.setProperty('top',`${Math.max(8,Math.min(event.clientY+18,innerHeight-bounds.height-8))}px`,'important');
   }
   function locate(event) {
     let element = event.composedPath().find(n=>n instanceof Element) || event.target;
@@ -134,31 +157,34 @@
   }
   document.addEventListener('pointermove',event=>{
     if (!picking) return;
-    const element=locate(event); if (element===highlighted) return;
+    const element=locate(event); if (element===highlighted) { if(element) showName(element,event); return; }
     unhighlight(); if (!element) return;
     highlighted=element; highlightStyle={value:element.style.getPropertyValue('outline'),priority:element.style.getPropertyPriority('outline')};
     element.style.setProperty('outline','2px solid rgb(45, 105, 231)','important');
     highlightStyle.applied=element.style.getPropertyValue('outline');
+    showName(element,event);
   },true);
   window.addEventListener('pointerdown',event=>{if(picking) {event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('click',event=>{
     if (!picking) return;
     const element=locate(event); if (!element) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    const mode=picking; picking=null; unhighlight();
+    const mode=picking, visibleRule=!compared && ruleFor(records.find(r=>r.element===element)); picking=null; unhighlight();
     serialize(async()=>{
       await clean(); scan();
       const record=records.find(r=>r.element===element);
       if (!record) { await paint(); status='Pick visible text instead of an image or icon.'; announce('changed'); return; }
       if (mode==='source') {
-        active=false; compared=false; applied=false; destination=null; source=record.family; selectedElement=element;
+        compared=false; source=record.family; selectedElement=element; scope='all'; sync();
         const estimate=U.estimate(element,record.stack);
         selection={family:record.family,stack:record.stack,text:record.text.slice(0,160),tag:element.tagName.toLowerCase(),weight:record.weight,style:record.style,size:record.size,confidence:estimate && U.normalize(estimate)===U.normalize(record.family) ? 'estimated' : 'css'};
         warnings=['Origin is the first CSS family. Fallbacks may render some characters in another font.'];
-        status='Choose a destination font'; revision++;
-      } else { await paint(); await preview({destination:{kind:'page',family:record.family},scope,revision}); }
-      announce('picked');
-    }).catch(error=>{status=error.message; announce('changed');});
+        status='Choose a font'; revision++; await paint(); announce('picked');
+      } else {
+        await paint(); status='Loading font';
+        announce('destination-picked',{destination:visibleRule?.destination || {kind:'page',family:record.family}});
+      }
+    }).catch(error=>{failureMessage=status=error.message; announce('changed');});
   },true);
   document.addEventListener('keydown',event=>{ if (event.key==='Escape' && picking) { picking=null; unhighlight(); status='Picker cancelled'; announce('changed'); } },true);
   async function preview(message) {
@@ -175,31 +201,44 @@
     } else if (!records.some(r=>U.normalize(r.family)===U.normalize(message.destination.family))) throw new Error('That font is no longer used on this page. Pick it again.');
     if (message.revision!==revision) throw new Error('The origin changed. Choose the destination again.');
     await clean();
-    for (const face of fontFaces) document.fonts.delete(face);
-    fontFaces=loaded; for (const face of loaded) document.fonts.add(face);
-    destination=message.destination; scope=message.scope==='element'?'element':'all'; alias=nextAlias;
+    const nextScope=message.scope==='element'?'element':'all';
+    const previous=rules.find(rule=>U.normalize(rule.source)===U.normalize(source) && rule.scope===nextScope && (nextScope==='all' || rule.element===selectedElement));
+    const next={id:previous?.id || crypto.randomUUID(),source,destination:message.destination,scope:nextScope,element:selectedElement,alias:nextAlias,fontFaces:loaded};
+    rules=rules.filter(rule=>rule!==previous); rules.push(next);
+    for (const face of previous?.fontFaces || []) document.fonts.delete(face);
+    for (const face of loaded) document.fonts.add(face);
+    destination=message.destination; scope=nextScope;
     warnings=warnings.filter(w=>!w.includes('closest available face'));
     warnings.push(...(message.font?.warnings || []));
-    active=true; applied=false; compared=false; status='Previewing'; scan(); await paint();
+    sync(); compared=false; status='Applied'; scan(); await paint();
   }
   async function command(message) {
     if (message.action==='ping') return {};
     if (message.action==='state') { if (!active) scan(); return currentState(); }
+    if (message.action==='failure') { failureMessage=status=message.error; return currentState(); }
+    failureMessage='';
     if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
     if (message.action==='cancel') { picking=null; unhighlight(); return currentState(); }
     if (message.action==='source') {
       if (typeof message.family!=='string' || !message.family.trim() || message.family.length>200) throw new Error('Choose an origin font.');
-      await clean(); active=false; applied=false; compared=false; destination=null; source=message.family.trim();
+      await clean(); compared=false; source=message.family.trim(); sync();
       if (selection && U.normalize(selection.family)!==U.normalize(source)) { selection=null; selectedElement=null; scope='all'; }
-      revision++; scan(); status=targets().length?'Choose a destination font':'No matching text on this page';
+      revision++; scan(); await paint(); status=targets().length?'Choose a font':'No matching text on this page';
     } else if (message.action==='prepare') {
       await refresh(); revision++; const chosen=targets(message.scope==='element'?'element':'all');
       return {revision,styles:[...new Map(chosen.map(r=>[`${r.weight}:${r.style}`,{weight:r.weight,style:r.style}])).values()]};
     } else if (message.action==='preview') await preview(message);
+    else if (message.action==='select') {
+      const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
+      source=rule.source; scope=rule.scope; selectedElement=rule.element; destination=rule.destination; picking=null; unhighlight(); revision++; status='Choose a font';
+    } else if (message.action==='remove') {
+      const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
+      await clean(); rules=rules.filter(item=>item!==rule); for(const face of rule.fontFaces) document.fonts.delete(face); sync(); revision++; scan(); await paint(); status=active?'Applied':'Original fonts restored';
+    }
     else if (message.action==='apply') { if (!active) throw new Error('Choose a destination first.'); if (compared) { compared=false; await refresh(); } applied=true; status='Applied'; }
     else if (message.action==='undo') {
-      await clean(); active=false; compared=false; applied=false; destination=null; alias=''; revision++;
-      for (const face of fontFaces) document.fonts.delete(face); fontFaces=[]; scan(); status='Original fonts restored';
+      await clean(); compared=false; revision++;
+      for (const rule of rules) for (const face of rule.fontFaces) document.fonts.delete(face); rules=[]; sync(); picking=null; unhighlight(); scan(); status='Original fonts restored';
     } else if (message.action==='compare') { if (!active) throw new Error('Choose a destination first.'); compared=!!message.enabled; await refresh(); status=compared?'Showing original':applied?'Applied':'Previewing'; }
     else throw new Error('Unknown page action.');
     return currentState();
