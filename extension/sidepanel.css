@@ -493,3 +493,6 @@ h2 {
 .actions .button-primary {
   flex: 1 1 auto;
 }
+
+.panel-header h1 { display: flex; align-items: center; gap: 9px; }
+.panel-header h1 img { border-radius: 5px; }

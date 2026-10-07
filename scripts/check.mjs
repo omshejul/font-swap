@@ -1,0 +1,11 @@
+import {readFile,readdir,access} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+const manifest=JSON.parse(await readFile('extension/manifest.json'));
+if(manifest.manifest_version!==3) throw new Error('Manifest v3 required');
+for(const file of [manifest.background.service_worker,manifest.side_panel.default_path]) await access(`extension/${file}`);
+for(const file of await readdir('extension')) if(file.endsWith('.js')) execFileSync(process.execPath,['--check',`extension/${file}`],{stdio:'inherit'});
+const html=await readFile('extension/sidepanel.html','utf8');
+if(/<script(?![^>]*\bsrc=)/i.test(html) || /\bon\w+=/i.test(html)) throw new Error('No inline scripts or event handlers');
+const {families}=JSON.parse(await readFile('extension/catalog.json'));
+if(families.length<1000 || !families.some(f=>f.family==='Inter')) throw new Error('Catalog incomplete');
+console.log(`Manifest, JavaScript and ${families.length} bundled fonts checked.`);

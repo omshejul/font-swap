@@ -1,0 +1,214 @@
+(() => {
+  if (globalThis.__fontSwapController) return;
+  globalThis.__fontSwapController = true;
+  const U = globalThis.FSFontUtils;
+  const marker = `data-font-swap-${crypto.randomUUID().replaceAll('-','')}`;
+  let source = '', destination = null, scope = 'all', selection = null, selectedElement = null;
+  let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
+  let revision = 0, cssRule = '', owned = [], fontFaces = [], alias = '', warnings = [], records = [], roots = [];
+  let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
+  const observers = new Map();
+  const announce = event => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event}).catch(()=>{});
+  const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };
+  function textOf(element) {
+    if (element.matches('input,textarea')) return element.type === 'password' ? '' : (element.value || element.placeholder || '');
+    return [...element.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE).map(n=>n.textContent).join('').trim();
+  }
+  function shadowOf(element) { try { return chrome.dom.openOrClosedShadowRoot(element); } catch { return element.shadowRoot; } }
+  function scan() {
+    records = []; roots = []; let visited = 0;
+    function walk(root) {
+      roots.push(root);
+      const walker = document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT);
+      let element;
+      while ((element=walker.nextNode())) {
+        if (++visited > 30000) break;
+        if (element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
+        const shadow = shadowOf(element); if (shadow) walk(shadow);
+        const text = textOf(element); if (!text) continue;
+        const css = getComputedStyle(element);
+        if (css.display==='none' || css.visibility==='hidden' || !element.getClientRects().length) continue;
+        const family = U.parseStack(css.fontFamily)[0] || '';
+        if (!family) continue;
+        records.push({element,root,family,protected:U.protectedFont(family,text),stack:css.fontFamily,text,weight:css.fontWeight,style:css.fontStyle,size:css.fontSize});
+      }
+    }
+    walk(document);
+    warnings = warnings.filter(w=>!w.startsWith('Large page:'));
+    if (visited>30000) warnings.push('Large page: scanning is limited to the first 30,000 elements.');
+    for (const [root,observer] of observers) if (!roots.includes(root)) { observer.disconnect(); observers.delete(root); }
+    for (const root of roots) if (!observers.has(root)) {
+      const observer = new MutationObserver(changes => {
+        if (!active) return;
+        if (mutating) { dirty=true; return; }
+        if (changes.some(change=>change.type!=='attributes' || ['style','class','hidden'].includes(change.attributeName))) schedule();
+      });
+      observer.observe(root,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','style','hidden']});
+      observers.set(root,observer);
+    }
+  }
+  function targets(nextScope=scope) { return records.filter(r=>!r.protected && (nextScope==='element' ? r.element===selectedElement : U.matches(r.stack,source))); }
+  function currentState() {
+    const fonts = new Map(); for (const r of records.filter(r=>!r.protected)) fonts.set(r.family,(fonts.get(r.family)||0)+1);
+    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,warnings:[...new Set(warnings)]};
+  }
+  async function stylesheet(remove='',insert='') {
+    if (!remove && !insert) return;
+    const result = await chrome.runtime.sendMessage({type:'FONT_SWAP_CSS',remove,insert});
+    if (!result?.ok) throw new Error(result?.error || 'Could not update page styles.');
+  }
+  async function clean() {
+    mutating = true;
+    try {
+      await stylesheet(cssRule); cssRule = '';
+      for (const item of owned) {
+        if (item.inline && item.element.style.getPropertyValue('font-family')===item.value && item.element.style.getPropertyPriority('font-family')==='important') {
+          if (item.before) item.element.style.setProperty('font-family',item.before,item.priority);
+          else item.element.style.removeProperty('font-family');
+        }
+        if (item.element.getAttribute(marker)===item.token) item.element.removeAttribute(marker);
+      }
+      owned = [];
+    } finally { for (const observer of observers.values()) observer.takeRecords(); mutating = false; if(dirty) { dirty=false; schedule(); } }
+  }
+  async function paint() {
+    if (!active || compared) return;
+    const chosen = targets();
+    // Keep inherited icon glyphs on their original stack when an ancestor swaps.
+    const changed=new Set(chosen.map(r=>r.element));
+    const guards=records.filter(r=>{
+      if(!r.protected) return false;
+      let ancestor=r.element.parentElement || r.element.getRootNode().host;
+      while(ancestor) { if(changed.has(ancestor)) return true; ancestor=ancestor.parentElement || ancestor.getRootNode().host; }
+      return false;
+    });
+    const groups = new Map(); const rules = [];
+    mutating = true;
+    try {
+      for (const record of [...chosen,...guards]) {
+        const tail = U.fallback(record.stack,source);
+        const value = record.protected ? record.stack : `${alias ? U.quote(alias) : U.familyCSS(destination.family)}${tail ? ', '+tail : ''}`;
+        let token = groups.get(value);
+        if (!token && record.root===document) { token = `g${groups.size}`; groups.set(value,token); rules.push(`[${marker}="${token}"] { font-family: ${value} !important; }`); }
+        const item = {element:record.element,token,inline:record.root!==document,value};
+        if (!item.inline) record.element.setAttribute(marker,token);
+        if (item.inline) {
+          item.before = record.element.style.getPropertyValue('font-family'); item.priority = record.element.style.getPropertyPriority('font-family');
+          record.element.style.setProperty('font-family',value,'important');
+          item.value = record.element.style.getPropertyValue('font-family');
+        }
+        owned.push(item);
+      }
+      for (const observer of observers.values()) observer.takeRecords();
+      const next = rules.join('\n'); await stylesheet('',next); cssRule=next;
+    } catch (error) { await clean(); throw error; }
+    finally { for (const observer of observers.values()) observer.takeRecords(); mutating=false; if(dirty) { dirty=false; schedule(); } }
+    if (scope==='element' && !selectedElement?.isConnected) status='Selected text was removed. Pick it again.';
+    else if (!chosen.length) status='No matching text on this page';
+  }
+  async function refresh() {
+    await clean(); scan(); await paint();
+  }
+  function schedule() {
+    if(timer) return;
+    timer=setTimeout(()=>{timer=null;serialize(async()=>{ await refresh(); announce('changed'); }).catch(()=>{});},150);
+  }
+  function unhighlight() {
+    if (!highlighted) return;
+    if (highlighted.style.getPropertyValue('outline')===highlightStyle.applied && highlighted.style.getPropertyPriority('outline')==='important') {
+      if (highlightStyle.value) highlighted.style.setProperty('outline',highlightStyle.value,highlightStyle.priority);
+      else highlighted.style.removeProperty('outline');
+    }
+    highlighted=null;
+  }
+  function locate(event) {
+    let element = event.composedPath().find(n=>n instanceof Element) || event.target;
+    // Closed shadow roots hide their child nodes from composedPath.
+    let shadow;
+    while ((shadow=shadowOf(element))) { const inside=shadow.elementFromPoint(event.clientX,event.clientY); if (!inside || inside===element) break; element=inside; }
+    while (element && element!==document.documentElement) {
+      if (textOf(element) && !U.protectedFont(U.parseStack(getComputedStyle(element).fontFamily)[0] || '',textOf(element))) return element;
+      element=element.parentElement || element.getRootNode().host;
+    }
+    return null;
+  }
+  document.addEventListener('pointermove',event=>{
+    if (!picking) return;
+    const element=locate(event); if (element===highlighted) return;
+    unhighlight(); if (!element) return;
+    highlighted=element; highlightStyle={value:element.style.getPropertyValue('outline'),priority:element.style.getPropertyPriority('outline')};
+    element.style.setProperty('outline','2px solid rgb(45, 105, 231)','important');
+    highlightStyle.applied=element.style.getPropertyValue('outline');
+  },true);
+  window.addEventListener('pointerdown',event=>{if(picking) {event.preventDefault();event.stopImmediatePropagation();}},true);
+  document.addEventListener('click',event=>{
+    if (!picking) return;
+    const element=locate(event); if (!element) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    const mode=picking; picking=null; unhighlight();
+    serialize(async()=>{
+      await clean(); scan();
+      const record=records.find(r=>r.element===element);
+      if (!record) { await paint(); status='Pick visible text instead of an image or icon.'; announce('changed'); return; }
+      if (mode==='source') {
+        active=false; compared=false; applied=false; destination=null; source=record.family; selectedElement=element;
+        const estimate=U.estimate(element,record.stack);
+        selection={family:record.family,stack:record.stack,text:record.text.slice(0,160),tag:element.tagName.toLowerCase(),weight:record.weight,style:record.style,size:record.size,confidence:estimate && U.normalize(estimate)===U.normalize(record.family) ? 'estimated' : 'css'};
+        warnings=['Origin is the first CSS family. Fallbacks may render some characters in another font.'];
+        status='Choose a destination font'; revision++;
+      } else { await paint(); await preview({destination:{kind:'page',family:record.family},scope,revision}); }
+      announce('picked');
+    }).catch(error=>{status=error.message; announce('changed');});
+  },true);
+  document.addEventListener('keydown',event=>{ if (event.key==='Escape' && picking) { picking=null; unhighlight(); status='Picker cancelled'; announce('changed'); } },true);
+  async function preview(message) {
+    if (message.revision!==revision) throw new Error('The origin changed while loading. Choose the destination again.');
+    let loaded=[], nextAlias='';
+    if (message.destination.kind==='google') {
+      nextAlias=`FontSwap_${crypto.randomUUID().replaceAll('-','')}`;
+      try {
+        for (const face of message.font.faces) {
+          const binary=Uint8Array.from(atob(message.font.binaries[face.id]),c=>c.charCodeAt(0));
+          const font=new FontFace(nextAlias,binary,face.descriptors); await font.load(); loaded.push(font);
+        }
+      } catch { throw new Error('Chrome could not load this font. The previous preview is unchanged.'); }
+    } else if (!records.some(r=>U.normalize(r.family)===U.normalize(message.destination.family))) throw new Error('That font is no longer used on this page. Pick it again.');
+    if (message.revision!==revision) throw new Error('The origin changed. Choose the destination again.');
+    await clean();
+    for (const face of fontFaces) document.fonts.delete(face);
+    fontFaces=loaded; for (const face of loaded) document.fonts.add(face);
+    destination=message.destination; scope=message.scope==='element'?'element':'all'; alias=nextAlias;
+    warnings=warnings.filter(w=>!w.includes('closest available face'));
+    warnings.push(...(message.font?.warnings || []));
+    active=true; applied=false; compared=false; status='Previewing'; scan(); await paint();
+  }
+  async function command(message) {
+    if (message.action==='ping') return {};
+    if (message.action==='state') { if (!active) scan(); return currentState(); }
+    if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
+    if (message.action==='cancel') { picking=null; unhighlight(); return currentState(); }
+    if (message.action==='source') {
+      if (typeof message.family!=='string' || !message.family.trim() || message.family.length>200) throw new Error('Choose an origin font.');
+      await clean(); active=false; applied=false; compared=false; destination=null; source=message.family.trim();
+      if (selection && U.normalize(selection.family)!==U.normalize(source)) { selection=null; selectedElement=null; scope='all'; }
+      revision++; scan(); status=targets().length?'Choose a destination font':'No matching text on this page';
+    } else if (message.action==='prepare') {
+      await refresh(); revision++; const chosen=targets(message.scope==='element'?'element':'all');
+      return {revision,styles:[...new Map(chosen.map(r=>[`${r.weight}:${r.style}`,{weight:r.weight,style:r.style}])).values()]};
+    } else if (message.action==='preview') await preview(message);
+    else if (message.action==='apply') { if (!active) throw new Error('Choose a destination first.'); if (compared) { compared=false; await refresh(); } applied=true; status='Applied'; }
+    else if (message.action==='undo') {
+      await clean(); active=false; compared=false; applied=false; destination=null; alias=''; revision++;
+      for (const face of fontFaces) document.fonts.delete(face); fontFaces=[]; scan(); status='Original fonts restored';
+    } else if (message.action==='compare') { if (!active) throw new Error('Choose a destination first.'); compared=!!message.enabled; await refresh(); status=compared?'Showing original':applied?'Applied':'Previewing'; }
+    else throw new Error('Unknown page action.');
+    return currentState();
+  }
+  chrome.runtime.onMessage.addListener((message,sender,respond)=>{
+    if (sender.id!==chrome.runtime.id || message.type!=='FONT_SWAP') return false;
+    serialize(()=>command(message)).then(value=>respond(value),error=>respond({error:error.message})); return true;
+  });
+  window.addEventListener('resize',()=>{if(active)schedule();});
+  document.fonts.addEventListener('loadingdone',()=>{if(active)schedule();});
+  scan();
+})();

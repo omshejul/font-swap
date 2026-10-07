@@ -10,6 +10,10 @@
     "package": "node scripts/package.mjs",
     "catalog": "node scripts/update-catalog.mjs"
   },
-  "devDependencies": {"playwright": "1.58.2"},
-  "engines": {"node": ">=22"}
+  "devDependencies": {
+    "playwright": "1.64.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }
