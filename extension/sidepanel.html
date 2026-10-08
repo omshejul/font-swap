@@ -24,9 +24,11 @@
     </section>
 
     <div id="view-main" class="main" hidden>
-      <div id="picking" class="notice" hidden>
-        <p>Click text on the page</p>
-        <button type="button" id="cancel" class="button button-small">Cancel</button>
+      <div id="picking-home" hidden>
+        <div id="picking" class="notice" hidden>
+          <p>Click text on the page</p>
+          <button type="button" id="cancel" class="button button-small">Cancel</button>
+        </div>
       </div>
 
       <div id="intro" class="intro">
@@ -55,8 +57,10 @@
 
       <button type="button" id="another" class="another" hidden><span aria-hidden="true">＋</span> Pick another font</button>
 
-      <p id="note" class="note" role="status"></p>
-      <p id="error" class="error" role="alert" hidden></p>
+      <div id="messages-home">
+        <p id="note" class="note" role="status"></p>
+        <p id="error" class="error" role="alert" hidden></p>
+      </div>
       <details id="warnings" class="warnings" hidden>
         <summary><svg class="notes-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Notes</summary>
         <ul id="warning-list"></ul>

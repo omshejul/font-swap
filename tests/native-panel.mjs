@@ -77,7 +77,15 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await page.goto(fixtureURL);await trigger();await panel.wait("!document.getElementById('picking').hidden");
  await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .pair-from')?.textContent==='Arial'");
  assert.match(await panel.evaluate("document.getElementById('warning-list').textContent"),/frames.*not accessible/i);
- await choose('Inter');await panel.click('#another');await page.locator('#generic').click();await panel.wait("!!document.querySelector('.pair-pending')");
+ await choose('Inter');await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting .pair-body #picking')");
+ assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.pair-awaiting .pair-from')).borderStyle"),'dotted');
+ assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-from').textContent"),'Pick from page');
+ assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),2);
+ await panel.click('#cancel');await panel.wait("!document.querySelector('.pair-awaiting')");
+ assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);
+ assert.equal(await panel.evaluate("document.querySelector('.pair-edit').getAttribute('aria-expanded')"),'false');
+ passed('adding a font opens a dotted source placeholder with picking controls inside its accordion; Cancel preserves swaps');
+ await panel.click('#another');await page.locator('#generic').click();await panel.wait("!!document.querySelector('.pair-pending')");
  const beforeDiscard=await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily);
  await panel.click('.pair-pending .pair-remove');await panel.wait("!document.querySelector('.pair-pending')");
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);

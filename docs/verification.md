@@ -1,12 +1,13 @@
 # Verification
 
-Verified 2026-10-08T03:53:27.999Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T04:00:33.929Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
-Manifest and syntax checks passed. Five unit tests passed. All 35 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
+Manifest and syntax checks passed. Five unit tests passed. All 37 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
 The fixture browser used loopback-only permissions in a temporary manifest copy to exercise permitted frames. The native-panel browser used the exact production manifest and a real toolbar action. Test browsers, fixture servers and temporary profiles were closed.
 
-- hover shows font name and picking removes tooltip
+- source hover shows hand cursor, subtle highlight and font name; picking restores website styles
+- both pickers show on-page instructions; Escape restores cursors and cancels frames, including shadow text
 - picker detects primary CSS family and selected text
 - real Google Font downloads and renders actual Lora glyphs over inline important
 - fallback-only matches, similar names and private-use icons stay unchanged
@@ -34,6 +35,7 @@ The fixture browser used loopback-only permissions in a temporary manifest copy 
 - production manifest toolbar gesture opens native panel and grants activeTab
 - saved pair opens and closes inline without removing the pair or changing the applied font
 - native panel searches, applies instantly, edits by keyboard and undoes on public iana.org
+- adding a font opens a dotted source placeholder with picking controls inside its accordion; Cancel preserves swaps
 - pending row opens, closes and discards without affecting an applied swap
 - native panel adds simultaneous pairs while production permissions protect cross-origin frames
 - switching accordion rows keeps both swaps applied and expands one editor at a time
@@ -93,10 +95,20 @@ The second pick uses a search icon, Search Google Fonts label and placeholder, a
 
 The panel follows the supplied three-state reference. A pending source row opens one replacement picker containing search, Pick from page and results. Applied swaps become compact rows with muted source names, bold destinations, chevrons and separate remove buttons. Numbered cards and the repeated source box are gone. Row and Notes chevrons are SVG icons. Notes retains native mouse and keyboard disclosure behavior. The updated drawing.svg supplies all icon sizes, and the extension is named SwapFont.
 
-Manifest and syntax checks, five unit tests and all 35 browser checks passed. The new pending-row check confirms closing, reopening and discarding a choice preserves an existing swap. Visually checked the native Chrome panel at 320px in light and dark themes.
+Manifest and syntax checks, five unit tests and all 37 browser checks passed. The new pending-row check confirms closing, reopening and discarding a choice preserves an existing swap. Visually checked the native Chrome panel at 320px in light and dark themes.
 
 ![Compact picker in dark theme](compact-search-dark.png)
 
 ![Compact picker in light theme](compact-search-light.png)
 
 ![Expanded compact accordion](compact-panel-dark.png)
+
+## Picking feedback in v0.2.2
+
+Starting another source pick opens a pending accordion with a dotted Pick from page label, eyedropper icon, instructions and Cancel inside it. Loading and errors appear in the active row. A temporary on-page eyedropper badge says Pick a font or Pick replacement font. Both pickers use a hand cursor, thin blue outline, translucent fill and font-name tooltip on text. Picking or Escape restores the site's cursor, outline and background. Escape also cancels other permitted frames.
+
+Browser checks cover custom important cursors, restoration on picking and Escape, shadow text, frame cancellation, badge removal, and cancelling a pending accordion without opening or changing an existing swap. Visually checked picking feedback on light and dark blue page backgrounds.
+
+![Waiting accordion](waiting-dark.png)
+
+![On-page picking feedback](page-picking.png)

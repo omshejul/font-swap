@@ -217,8 +217,7 @@ h1 img {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 14px;
 }
 
 /* Page picking and replacement editor */
@@ -312,6 +311,9 @@ h1 img {
 }
 
 .pair-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 4px 0 12px;
 }
 
@@ -345,6 +347,10 @@ h1 img {
 .pair-from { color: var(--muted); }
 .pair-to { font-weight: 600; }
 .pair-pending .pair-to { color: var(--accent); }
+.pair-awaiting .pair-from { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; padding: 5px 8px; border: 1px dotted var(--accent); border-radius: 6px; color: var(--accent); }
+.pair-awaiting .pair-edit { gap: 4px; font-size: 14px; }
+.pair-awaiting .pair-to { color: var(--muted); font-weight: 400; }
+#messages-home:has(.note:empty):has(.error[hidden]) { display: none; }
 
 .pair-edit .pair-arrow {
   flex: none;

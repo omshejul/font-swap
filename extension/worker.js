@@ -100,8 +100,8 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
     return {};
   })();
   else if (message.type === 'FONT_SWAP_EVENT' && sender.tab) work = (async () => {
-    if (message.event === 'picked') {
-      await remember(sender.tab.id,sender.frameId);
+    if (message.event === 'picked' || message.event === 'cancelled') {
+      if (message.event === 'picked') await remember(sender.tab.id,sender.frameId);
       await Promise.allSettled((frames.get(sender.tab.id)?.allowed || []).filter(id=>id!==sender.frameId).map(id=>page(sender.tab.id,id,'cancel')));
     } else if(message.event==='destination-picked' && sender.frameId===await selectedFrame(sender.tab.id)) {
       try { await panel({action:'preview',tabId:sender.tab.id,destination:message.destination,scope:'all'}); }

@@ -12,10 +12,10 @@ const manifest=JSON.parse(await readFile(path.join(extension,'manifest.json')));
 manifest.host_permissions.push('http://127.0.0.1/*','http://localhost/*');
 await writeFile(path.join(extension,'manifest.json'),JSON.stringify(manifest));
 const fixture=`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/fixture.css"></head><body>
-<h1 id="heading" style="font-family:Arial,sans-serif!important">Find your next chapter</h1>
+<h1 id="heading" style="font-family:Arial,sans-serif!important;cursor:crosshair!important;outline:3px dotted red;background-color:rgb(240,240,240)">Find your next chapter</h1>
 <p id="body">Stories are better when they are shared.</p><p id="fallback" class="fallback">Fallback Inter remains protected</p>
 <p id="similar" class="similar">Arial Narrow remains protected</p><span id="icon" class="icon">&#xe900;</span>
-<p id="inherited">Direct text <span id="inherited-icon">&#xe901;</span></p><p id="generic" style="font-family:monospace">Generic destination</p><div id="open"></div><div id="closed"></div><div id="dynamic"></div>
+<p id="inherited">Direct text <span id="inherited-icon">&#xe901;</span></p><p id="generic" style="font-family:monospace;cursor:help!important">Generic destination</p><div id="open"></div><div id="closed"></div><div id="dynamic"></div>
 <iframe id="same" src="/frame"></iframe><iframe id="cross" src="http://localhost:PORT/frame"></iframe>
 <script src="/fixture.js"></script></body></html>`;
 const fixtureJS=`for(const mode of ['open','closed']) { const root=document.querySelector('#'+mode).attachShadow({mode}); const span=document.createElement('span'); span.id=mode+'-text'; span.style.fontFamily='Arial, sans-serif'; span.textContent=mode+' shadow text';root.append(span); }
@@ -44,7 +44,23 @@ try {
  const send=(action,payload={})=>panel.evaluate(async m=>chrome.runtime.sendMessage(m),{type:'PANEL',action,tabId,...payload});
  const ok=async(action,payload)=>{const r=await send(action,payload);assert.equal(r.ok,true,r.error);return r;};
  const waitState=async predicate=>{const end=Date.now()+30000;while(Date.now()<end){const r=await ok('state');if(predicate(r.state))return r;await page.waitForTimeout(40);}throw new Error('Page selection did not settle');};
- await ok('connect');await ok('pick',{mode:'source'});await page.locator('#heading').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Arial');await page.locator('#heading').click();assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);passed('hover shows font name and picking removes tooltip');
+ await ok('connect');
+ const originalHover=await page.locator('#heading').evaluate(e=>({cursor:getComputedStyle(e).cursor,outline:e.style.outline,background:e.style.backgroundColor}));
+ await ok('pick',{mode:'source'});assert.equal(await page.locator('[data-font-swap-picker]').count(),1);await page.locator('#heading').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Arial');
+ assert.equal(await page.locator('#heading').evaluate(e=>getComputedStyle(e).cursor),'pointer');
+ assert.match(await page.locator('#heading').evaluate(e=>getComputedStyle(e).outline),/1px/);
+ assert.equal(await page.locator('#heading').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(45, 105, 231, 0.08)');
+ await page.locator('#heading').click();assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
+ assert.deepEqual(await page.locator('#heading').evaluate(e=>({cursor:getComputedStyle(e).cursor,outline:e.style.outline,background:e.style.backgroundColor})),originalHover);
+ passed('source hover shows hand cursor, subtle highlight and font name; picking restores website styles');
+ await ok('pick',{mode:'destination'});assert.equal(await page.locator('[data-font-swap-picker]').count(),1);await page.locator('#generic').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'monospace');
+ assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).cursor),'pointer');
+ await page.keyboard.press('Escape');await waitState(s=>!s.picking);assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
+ assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).cursor),'help');assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);
+ await ok('pick',{mode:'source'});await page.locator('#open-text').hover();assert.equal(await page.locator('#open-text').evaluate(e=>getComputedStyle(e).cursor),'pointer');
+ await page.keyboard.press('Escape');await waitState(s=>!s.picking);assert.equal(await page.locator('#open-text').evaluate(e=>e.style.getPropertyValue('cursor')),'');
+ await page.frameLocator('#same').locator('#frame-text').hover();assert.equal(await page.frameLocator('#same').locator('[data-font-swap-tooltip]').count(),0);assert.notEqual(await page.frameLocator('#same').locator('#frame-text').evaluate(e=>getComputedStyle(e).cursor),'pointer');
+ passed('both pickers show on-page instructions; Escape restores cursors and cancels frames, including shadow text');
  let result=await ok('state');assert.equal(result.state.source,'Arial');assert.equal(result.state.selection.tag,'h1');passed('picker detects primary CSS family and selected text');
  result=await ok('preview',{destination:{kind:'google',family:'Lora'},scope:'all'});assert.equal(result.state.active,true);assert.equal(result.state.applied,true);
  const changed=await page.locator('#heading').evaluate(e=>getComputedStyle(e).fontFamily);assert.match(changed,/FontSwap_/);
