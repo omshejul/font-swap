@@ -5,7 +5,7 @@
   const marker = `data-font-swap-${crypto.randomUUID().replaceAll('-','')}`;
   let source = '', destination = null, scope = 'all', selection = null, selectedElement = null;
   let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
-  let revision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
+  let revision = 0, styleRevision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
   let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
   let loadingBadge = null, loadingLabel, loadingToken = null, loadingFamily = '';
@@ -20,6 +20,13 @@
   }
   function shadowOf(element) { try { return chrome.dom.openOrClosedShadowRoot(element); } catch { return element.shadowRoot; } }
   function scan() {
+    // Read the website's fonts without leaving them visible for a browser frame.
+    const previous = owned.filter(item=>item.inline ? item.element.style.getPropertyValue('font-family')===item.value && item.element.style.getPropertyPriority('font-family')==='important' : item.element.getAttribute(marker)===item.token);
+    releaseOwned(owned);
+    try { collect(); }
+    finally { applyOwned(previous); for (const observer of observers.values()) observer.takeRecords(); }
+  }
+  function collect() {
     records = []; roots = []; let visited = 0;
     function walk(root) {
       roots.push(root);
@@ -73,18 +80,31 @@
     mutating = true;
     try {
       await stylesheet(cssRule); cssRule = '';
-      for (const item of owned) {
-        if (item.inline && item.element.style.getPropertyValue('font-family')===item.value && item.element.style.getPropertyPriority('font-family')==='important') {
-          if (item.before) item.element.style.setProperty('font-family',item.before,item.priority);
-          else item.element.style.removeProperty('font-family');
-        }
-        if (item.element.getAttribute(marker)===item.token) item.element.removeAttribute(marker);
-      }
+      releaseOwned(owned);
       owned = [];
     } finally { for (const observer of observers.values()) observer.takeRecords(); mutating = false; if(dirty) { dirty=false; schedule(); } }
   }
+  function releaseOwned(items) {
+    for (const item of items) {
+      if (item.inline && item.element.style.getPropertyValue('font-family')===item.value && item.element.style.getPropertyPriority('font-family')==='important') {
+        if (item.before) item.element.style.setProperty('font-family',item.before,item.priority);
+        else item.element.style.removeProperty('font-family');
+      }
+      if (item.element.getAttribute(marker)===item.token) item.element.removeAttribute(marker);
+    }
+  }
+  function applyOwned(items) {
+    for (const item of items) {
+      if (!item.inline) item.element.setAttribute(marker,item.token);
+      else {
+        item.before = item.element.style.getPropertyValue('font-family'); item.priority = item.element.style.getPropertyPriority('font-family');
+        item.element.style.setProperty('font-family',item.value,'important');
+        item.value = item.element.style.getPropertyValue('font-family');
+      }
+    }
+  }
   async function paint() {
-    if (!active || compared) return;
+    if (!active || compared) { await clean(); return; }
     const chosen = records.filter(record=>ruleFor(record));
     // Keep inherited icon glyphs on their original stack when an ancestor swaps.
     const changed=new Set(chosen.map(r=>r.element));
@@ -94,7 +114,7 @@
       while(ancestor) { if(changed.has(ancestor)) return true; ancestor=ancestor.parentElement || ancestor.getRootNode().host; }
       return false;
     });
-    const groups = new Map(); const cssRules = [];
+    const groups = new Map(), cssRules = [], nextOwned = [], prefix = `g${++styleRevision}_`;
     mutating = true;
     try {
       for (const record of [...chosen,...guards]) {
@@ -102,25 +122,23 @@
         const tail = rule && U.fallback(record.stack,rule.source);
         const value = record.protected ? record.stack : `${rule.alias ? U.quote(rule.alias) : U.familyCSS(rule.destination.family)}${tail ? ', '+tail : ''}`;
         let token = groups.get(value);
-        if (!token && record.root===document) { token = `g${groups.size}`; groups.set(value,token); cssRules.push(`[${marker}="${token}"] { font-family: ${value} !important; }`); }
+        if (!token && record.root===document) { token = `${prefix}${groups.size}`; groups.set(value,token); cssRules.push(`[${marker}="${token}"] { font-family: ${value} !important; }`); }
         const item = {element:record.element,token,inline:record.root!==document,value};
-        if (!item.inline) record.element.setAttribute(marker,token);
-        if (item.inline) {
-          item.before = record.element.style.getPropertyValue('font-family'); item.priority = record.element.style.getPropertyPriority('font-family');
-          record.element.style.setProperty('font-family',value,'important');
-          item.value = record.element.style.getPropertyValue('font-family');
-        }
-        owned.push(item);
+        nextOwned.push(item);
       }
+      // Install new selectors before switching ownership, so the old swap stays painted.
+      const next = cssRules.join('\n'), previous = cssRule;
+      await stylesheet('',next);
+      releaseOwned(owned); applyOwned(nextOwned); owned=nextOwned; cssRule=next;
       for (const observer of observers.values()) observer.takeRecords();
-      const next = cssRules.join('\n'); await stylesheet('',next); cssRule=next;
-    } catch (error) { await clean(); throw error; }
+      await stylesheet(previous);
+    }
     finally { for (const observer of observers.values()) observer.takeRecords(); mutating=false; if(dirty) { dirty=false; schedule(); } }
     if (scope==='element' && !selectedElement?.isConnected) status='Selected text was removed. Pick it again.';
     else if (!chosen.length) status='No matching text on this page';
   }
   async function refresh() {
-    await clean(); scan(); await paint();
+    scan(); await paint();
   }
   function schedule() {
     if(timer) return;
