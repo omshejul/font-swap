@@ -25,6 +25,6 @@ Screenshots and the rounded SwapFont icon come from this repository. Inter font 
 
 ## Verified output
 
-The final MP4 has 720 H.264 frames, yuv420p, exact 24-second duration and AAC stereo at 48 kHz. FFmpeg measured -16.1 LUFS integrated loudness and -1.8 dBFS true peak. Audio was verified by measurement, not listening. HyperFrames found zero errors and zero layout issues across 178 samples; nine structural/reused-image warnings remain in this compact composition. Scene and end-card frames were visually reviewed.
+The final MP4 has 720 H.264 frames, yuv420p, exact 24-second duration and AAC stereo at 48 kHz. FFmpeg measured -16.1 LUFS integrated loudness and -1.9 dBFS true peak. Audio was verified by measurement, not listening. HyperFrames found zero errors and zero layout issues across 178 samples; nine structural/reused-image warnings remain in this compact composition. Scene and end-card frames were visually reviewed.
 
 The published MP4 and poster are hosted at https://omshejul.com/app/swapfont in the portfolio-next repository.
