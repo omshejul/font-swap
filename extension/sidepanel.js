@@ -46,6 +46,7 @@ let catalogLoading = null;
 let matches = [];
 let activeIndex = -1;
 let pairsSignature = '';
+let resultsSignature = '';
 
 // Messaging
 
@@ -313,29 +314,34 @@ function renderResults(show) {
   if (activeIndex >= matches.length) activeIndex = matches.length - 1;
   els.results.hidden = !show || !catalog;
   els.search.setAttribute('aria-expanded', String(matches.length > 0));
-  els.results.replaceChildren(...matches.map((font, index) => {
-    const option = document.createElement('div');
-    option.id = `result-${index}`;
-    option.className = 'result';
-    option.setAttribute('role', 'option');
-    option.setAttribute('aria-selected', String(index === activeIndex));
-    option.dataset.index = index;
-    option.dataset.family = font.family;
-    option.textContent = font.family;
-    return option;
-  }));
-  if (show && catalog && !matches.length) {
-    els.results.append(Object.assign(document.createElement('p'), { className: 'results-empty', textContent: 'No fonts found' }));
+  const signature = JSON.stringify([show, Boolean(catalog), matches.map((font) => font.family)]);
+  // Page refreshes can arrive between pointer down and up. Keep the click target alive.
+  if (signature !== resultsSignature) {
+    resultsSignature = signature;
+    els.results.replaceChildren(...matches.map((font, index) => {
+      const option = document.createElement('div');
+      option.id = `result-${index}`;
+      option.className = 'result';
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(index === activeIndex));
+      option.dataset.index = index;
+      option.dataset.family = font.family;
+      option.textContent = font.family;
+      return option;
+    }));
+    if (show && catalog && !matches.length) {
+      els.results.append(Object.assign(document.createElement('p'), { className: 'results-empty', textContent: 'No fonts found' }));
+    }
   }
-  setActive(activeIndex);
+  setActive(activeIndex, false);
 }
 
-function setActive(index) {
+function setActive(index, scroll = true) {
   activeIndex = matches.length ? Math.max(-1, Math.min(index, matches.length - 1)) : -1;
   for (const option of els.results.querySelectorAll('.result')) {
     const selected = Number(option.dataset.index) === activeIndex;
     option.setAttribute('aria-selected', String(selected));
-    if (selected) option.scrollIntoView({ block: 'nearest' });
+    if (selected && scroll) option.scrollIntoView({ block: 'nearest' });
   }
   if (activeIndex < 0) els.search.removeAttribute('aria-activedescendant');
   else els.search.setAttribute('aria-activedescendant', `result-${activeIndex}`);

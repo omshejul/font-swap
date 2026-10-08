@@ -43,10 +43,18 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  for(let i=0;i<50;i++){panelTarget=(await browserCDP.send('Target.getTargets')).targetInfos.find(t=>t.url===`chrome-extension://${id}/sidepanel.html`);if(panelTarget)break;await page.waitForTimeout(80);}
  assert(panelTarget,'Native Chrome side panel did not open');
  const panel=await attachPanel(browserCDP,panelTarget.targetId);
- const choose=async family=>{
+ const choose=async (family,refreshDuringClick=false)=>{
   await panel.click('#search');await panel.command('Input.insertText',{text:family});
   await panel.wait(`!!document.querySelector('#results .result[data-family="${family}"]')`);
-  await panel.click(`#results .result[data-family="${family}"]`);
+  if(refreshDuringClick) {
+   const current=await panel.evaluate("(async()=>{const [tab]=await chrome.tabs.query({active:true,currentWindow:true});return (await chrome.runtime.sendMessage({type:'PANEL',action:'state',tabId:tab.id})).state;})()");
+   const point=await panel.evaluate(`(()=>{window.__pressedResult=document.querySelector('#results .result[data-family="${family}"]');const r=window.__pressedResult.getBoundingClientRect();chrome.runtime.onMessage.addListener(m=>{if(m.testRefresh)window.__refreshSeen=true;});return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+   await panel.command('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
+   await worker.evaluate(message=>chrome.runtime.sendMessage(message).catch(()=>{}),{type:'STATE_CHANGED',tabId:current.tabId,state:current,testRefresh:true});
+   await panel.wait('window.__refreshSeen');
+   assert.equal(await panel.evaluate(`window.__pressedResult===document.querySelector('#results .result[data-family="${family}"]')`),true,'Page refresh replaced the pressed result');
+   await panel.command('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
+  } else await panel.click(`#results .result[data-family="${family}"]`);
   await panel.wait(`document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('${family}')`);
  };
  await panel.wait("!document.getElementById('picking').hidden");
@@ -56,7 +64,8 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.equal(await panel.evaluate("document.querySelector('.pair-pending .pair-to').textContent"),'Choose font');
  await panel.click('.pair-pending .pair-edit');await panel.wait("document.getElementById('steps').hidden");
  await panel.click('.pair-pending .pair-edit');await panel.wait("!document.getElementById('steps').hidden");
- await choose('Lora');assert.match(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ await choose('Lora',true);assert.match(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ passed('a page state update between native pointer press and release preserves the result and applies the font');
  assert.equal(await panel.evaluate("!!document.getElementById('apply') || !!document.getElementById('compare')"),false);
  const appliedFont=await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily);
  await panel.click('.pair-edit');await panel.wait("!!document.querySelector('.pair-body:not([hidden]) #steps') && !document.getElementById('search').disabled");
