@@ -22,6 +22,7 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
   if(property==='text')return element.textContent;
   if(property==='font')return getComputedStyle(element).fontFamily;
   if(property==='overflow')return element.scrollWidth>element.clientWidth;
+  if(property==='footer'){const link=root.querySelector('.browse-fonts'),logo=link.querySelector('canvas'),r=link.getBoundingClientRect();return{href:link.href,target:link.target,rel:link.rel,svg:!!link.querySelector('.external-link'),painted:!!logo?.getContext('2d').getImageData(0,0,logo.width,logo.height).data.some((v,i)=>i%4===3&&v>0),visible:r.bottom<=host.getBoundingClientRect().bottom};}
   const rect=host.getBoundingClientRect();
   return {hidden:!rect.width,left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,background:getComputedStyle(host).backgroundColor,rows:root.querySelectorAll('.pair').length,source:root.querySelector('.pair-from')?.textContent,destination:root.querySelector('.pair-to')?.textContent,editing:!root.getElementById('steps').hidden,picking:!!root.getElementById('view-main').dataset.picking,loading:root.getElementById('note').classList.contains('is-loading'),note:root.getElementById('note').textContent,error:root.getElementById('error').textContent,spinner:getComputedStyle(root.getElementById('note'),'::before').animationName};
  },args:[args]}))[0].result,{tabId,selector,property});
@@ -82,16 +83,14 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await click('#another');await wait(info=>info?.picking);await click('#mode-toggle');
  docked=await nativePanel();await docked.wait("document.querySelectorAll('.pair').length===2 && !document.getElementById('view-main').dataset.picking");
  await wait(info=>info?.hidden);assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
- assert.equal(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),fontBeforeDock);
- assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),genericBeforeDock);
+ await page.waitForFunction(([body,generic])=>getComputedStyle(document.querySelector('#body')).fontFamily===body && getComputedStyle(document.querySelector('#generic')).fontFamily===generic,[fontBeforeDock,genericBeforeDock]);
  await waitMode('sidepanel');
  assert.equal(await docked.evaluate("!!document.getElementById('warnings') || document.body.textContent.includes('Origin is the first CSS family')"),false);
  // Exercise the pre-Chrome 141 close fallback too.
  await worker.evaluate(()=>{globalThis.__sidePanelClose=chrome.sidePanel.close;chrome.sidePanel.close=undefined;});
  await docked.click('#mode-toggle');await wait(info=>info && !info.hidden && info.rows===2 && !info.picking);
  await worker.evaluate(()=>{chrome.sidePanel.close=globalThis.__sidePanelClose;});
- assert.equal(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),fontBeforeDock);
- assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),genericBeforeDock);
+ await page.waitForFunction(([body,generic])=>getComputedStyle(document.querySelector('#body')).fontFamily===body && getComputedStyle(document.querySelector('#generic')).fontFamily===generic,[fontBeforeDock,genericBeforeDock]);
  await waitMode('floating');
  assert.equal((await cdp.send('Target.getTargets')).targetInfos.some(t=>t.url===`chrome-extension://${id}/sidepanel.html`),false);
  passed('one extension switches both ways, preserves multiple swaps, cancels picking and removes Notes; older close fallback works');
@@ -114,6 +113,13 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  await page.screenshot({path:'test-results/floating-strict.png'});
  const light=(await inspect()).background;await page.emulateMedia({colorScheme:'dark'});assert.notEqual((await inspect()).background,light);await page.screenshot({path:'test-results/floating-dark.png'});
+ const footer=await inspect('.browse-fonts','footer');assert.equal(footer.href,'https://fonts.google.com/');assert.equal(footer.target,'_blank');assert.match(footer.rel,/noopener/);assert(footer.svg && footer.painted && footer.visible);
+ await context.route('https://fonts.google.com/',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Google Fonts destination</title>'}));
+ await click('#another');await wait(info=>info?.picking);
+ const popupReady=context.waitForEvent('page');await click('.browse-fonts');const popup=await popupReady;await popup.waitForURL('https://fonts.google.com/');assert.equal(await popup.evaluate(()=>opener),null);await popup.close();await page.bringToFront();await context.unroute('https://fonts.google.com/');
+ assert((await inspect()).picking,'Footer click must not pick a font');await page.keyboard.press('Escape');await wait(info=>!info.picking);
+ await click('#move-panel');let footerFocused=false;for(let i=0;i<20&&!footerFocused;i++){await page.keyboard.press('Tab');footerFocused=await worker.evaluate(async tabId=>(await chrome.scripting.executeScript({target:{tabId},func:()=>{const root=globalThis.__fontSwapPanelRoot,link=root.querySelector('.browse-fonts');return root.activeElement===link && getComputedStyle(link).outlineStyle!=='none';}}))[0].result,tabId);}assert(footerFocused,'Footer must be keyboard reachable with visible focus');
+ passed('floating Google Fonts footer paints under strict CSP, opens a separate tab without picking, and has visible keyboard focus');
  await click('#undo');await click('#close-panel');
  passed('floating controls and real font swaps work with frame-src none, style-src none and Trusted Types restrictions');
  await page.close();await cdp.detach();

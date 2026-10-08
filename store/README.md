@@ -1,6 +1,6 @@
 # Chrome Web Store draft
 
-SwapFont v0.4.1. Category Art & Design. Language English.
+SwapFont v0.4.2. Category Art & Design. Language English.
 
 - Homepage: https://omshejul.com/app/swapfont
 - Privacy: https://omshejul.com/app/swapfont/privacy

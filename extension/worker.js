@@ -97,7 +97,8 @@ async function panel(message) {
   if (action === 'mode') return switchMode(tabId,message.mode);
   if (action === 'ui') {
     const [html,css,icon] = await Promise.all(['sidepanel.html','sidepanel.css','icons/icon.svg'].map(file=>fetch(chrome.runtime.getURL(file)).then(r=>r.text())));
-    return {html,css,icon,tabId};
+    const logo = Array.from(new Uint8Array(await fetch(chrome.runtime.getURL('icons/google-fonts.png')).then(r=>r.arrayBuffer())));
+    return {html,css,icon,logo,tabId};
   }
   if (action === 'catalog') return {catalog:await getCatalog()};
   if (action === 'sample') {
