@@ -351,16 +351,19 @@ h1 img {
 .pair-source .pair-from::after {
   position: absolute;
   inset: -2px;
-  border: 2px dashed color-mix(in srgb, var(--accent) 80%, transparent);
+  border: 2px dashed var(--accent);
   border-radius: inherit;
   pointer-events: none;
   content: '';
   opacity: 0.7;
 }
 .pair-awaiting .pair-from::after {
-  animation: picker-border 1.6s ease-in-out infinite alternate;
+  animation: picker-border 0.8s linear infinite;
 }
-@keyframes picker-border { from { opacity: 0.45; } to { opacity: 0.9; } }
+@keyframes picker-border {
+  0%, 45%, 100% { opacity: 1; }
+  55%, 90% { opacity: 0.1; }
+}
 @media (prefers-reduced-motion: reduce) { .pair-awaiting .pair-from::after { animation: none; opacity: 0.7; } }
 .pair-source .pair-edit { gap: 4px; font-size: 14px; }
 .pair-source .pair-to { color: var(--muted); font-weight: 400; }
