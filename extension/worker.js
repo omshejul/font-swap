@@ -2,7 +2,8 @@ import {getCatalog, loadGoogleFont} from './fonts.js';
 
 const frames = new Map();
 const selected = new Map();
-chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(() => {});
+const floating = !chrome.runtime.getManifest().side_panel;
+if (!floating) chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(() => {});
 async function page(tabId, frameId, action, payload = {}) {
   const result = await chrome.tabs.sendMessage(tabId, {type:'FONT_SWAP',action,...payload}, {frameId});
   if (result?.error) throw new Error(result.error);
@@ -50,10 +51,19 @@ async function state(tabId) {
   return result;
 }
 async function broadcast(tabId) {
-  try { await chrome.runtime.sendMessage({type:'STATE_CHANGED',tabId,state:await state(tabId)}); } catch { /* Panel closed or page navigated. */ }
+  try { await notify(tabId,await state(tabId)); } catch { /* Panel closed or page navigated. */ }
+}
+async function notify(tabId,result) {
+  const message={type:'STATE_CHANGED',tabId,state:result};
+  if (floating) await chrome.tabs.sendMessage(tabId,message,{frameId:0}).catch(()=>{});
+  else await chrome.runtime.sendMessage(message).catch(()=>{});
 }
 async function panel(message) {
   const {action,tabId} = message;
+  if (action === 'ui' && floating) {
+    const [html,css,icon] = await Promise.all(['sidepanel.html','sidepanel.css','icons/icon.svg'].map(file=>fetch(chrome.runtime.getURL(file)).then(r=>r.text())));
+    return {html,css,icon,tabId};
+  }
   if (action === 'catalog') return {catalog:await getCatalog()};
   if (action === 'sample') {
     const loaded = await loadGoogleFont(message.family,[{weight:'400',style:'normal'}],true);
@@ -84,13 +94,15 @@ async function panel(message) {
     await page(tabId,frameId,action,{family:message.family,enabled:message.enabled});
   } else throw new Error('Unknown SwapFont action.');
   const result = await state(tabId);
-  await chrome.runtime.sendMessage({type:'STATE_CHANGED',tabId,state:result}).catch(()=>{});
+  await notify(tabId,result);
   return {state:result};
 }
 chrome.runtime.onMessage.addListener((message,sender,respond) => {
   if (sender.id !== chrome.runtime.id) return false;
   let work;
   if (message.type === 'PANEL' && !sender.tab && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message);
+  // Floating controls are trusted content-script code. Always use the sender's tab.
+  else if (message.type === 'PANEL' && floating && sender.tab && sender.frameId === 0) work = panel({...message,tabId:sender.tab.id});
   // Extension pages opened as a tab also carry sender.tab.
   else if (message.type === 'PANEL' && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message);
   else if (message.type === 'FONT_SWAP_CSS' && sender.tab) work = (async () => {
@@ -114,6 +126,21 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
   return true;
 });
 chrome.action.onClicked.addListener(async tab => {
+  if (floating) {
+    try {
+      const current=await connect(tab.id);
+      await chrome.scripting.executeScript({target:{tabId:tab.id},files:['floating.js']});
+      await chrome.scripting.executeScript({target:{tabId:tab.id},files:['sidepanel.js']});
+      if (!current.source) await panel({action:'pick',tabId:tab.id,mode:'source'});
+      else await broadcast(tab.id);
+      await chrome.action.setBadgeText({tabId:tab.id,text:''});
+      await chrome.action.setTitle({tabId:tab.id,title:'Open SwapFont Floating'});
+    } catch (error) {
+      await chrome.action.setBadgeText({tabId:tab.id,text:'!'});
+      await chrome.action.setTitle({tabId:tab.id,title:error.message});
+    }
+    return;
+  }
   // Open during the original toolbar gesture; normal action grants activeTab.
   chrome.sidePanel.open({tabId:tab.id}).catch(()=>{});
   try { await connect(tab.id); await panel({action:'pick',tabId:tab.id,mode:'source'}); } catch { /* The panel presents connection errors. */ }

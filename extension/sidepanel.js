@@ -1,10 +1,15 @@
-// Side panel: pick a font on the page, choose its replacement, done.
+// Shared controls for the side panel and floating panel.
+(() => {
+const root = globalThis.__fontSwapPanelRoot || document;
+if (root.__fontSwapMounted) return;
+root.__fontSwapMounted = true;
+const floating = root !== document;
 
 const MAX_RESULTS = 30;
 const RECONNECT_DELAY_MS = 150;
 const FALLBACK_ERROR = 'That did not work. Try again.';
 
-const $ = (id) => document.getElementById(id);
+const $ = (id) => root.getElementById(id);
 
 const els = {
   undo: $('undo'),
@@ -29,7 +34,7 @@ const els = {
 
 const views = { loading: $('view-loading'), error: $('view-error'), main: $('view-main') };
 
-let tabId = null;
+let tabId = floating ? root.__fontSwapTabId : null;
 let tabEpoch = 0;
 let state = null;
 let busy = false;
@@ -87,7 +92,8 @@ async function connect() {
   showView('loading');
   let tab;
   try {
-    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (floating) tab = { id: tabId };
+    else [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   } catch {
     tab = null;
   }
@@ -428,11 +434,11 @@ chrome.runtime.onMessage.addListener((message) => {
   if (busy) return; // the pending action returns newer state
   setState(message.state);
 });
-chrome.tabs.onActivated.addListener(scheduleConnect);
-chrome.tabs.onUpdated.addListener((id, change) => {
+if (!floating) chrome.tabs.onActivated.addListener(scheduleConnect);
+if (!floating) chrome.tabs.onUpdated.addListener((id, change) => {
   if (id === tabId && change.status === 'complete') scheduleConnect();
 });
-document.addEventListener('keydown', (event) => {
+(floating ? root : document).addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && state?.picking) {
     event.preventDefault();
     run('cancel');
@@ -441,3 +447,4 @@ document.addEventListener('keydown', (event) => {
 
 loadCatalog();
 connect();
+})();
