@@ -10,7 +10,7 @@
   let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
   let loadingBadge = null, loadingLabel, loadingToken = null, loadingFamily = '';
   let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
-  const attentionTiming = {page:500, dialogue:400, delay:100, reduced:500};
+  const attentionTiming = {page:500, dialogue:400, delay:100, exit:200, reduced:500};
   const observers = new Map();
   const announce = (event,payload={}) => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event,...payload}).catch(()=>{});
   const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };
@@ -176,14 +176,23 @@
     loadingToken=token;loadingLabel.textContent=`Loading ${family}`;document.documentElement.append(loadingBadge);
   }
   function stopPicking() {
-    picking=null; clearAttention(); unhighlight(); pickerBadge?.remove();
+    if (picking) clearAttention(true);
+    picking=null; unhighlight(); pickerBadge?.remove();
   }
-  function clearAttention() {
+  function clearAttention(fade=false) {
     clearTimeout(attentionTimer); attentionTimer=null;
+    const opacity=fade && attentionOverlay?.isConnected && !matchMedia('(prefers-reduced-motion: reduce)').matches ? Number(getComputedStyle(attentionTint).opacity) : 0;
     for (const animation of attentionAnimations) animation.cancel();
-    attentionAnimations=[]; attentionOverlay?.remove();
+    attentionAnimations=[];
+    if (attentionTint) attentionTint.style.opacity='0';
+    if (attentionOutline) attentionOutline.style.opacity='0';
+    if (!opacity) { attentionOverlay?.remove(); return; }
+    const animations=[attentionTint.animate([{opacity},{opacity:0}],{duration:attentionTiming.exit,easing:'ease-in-out'})];
+    attentionAnimations=animations;
+    animations[0].finished.then(()=>{if(attentionAnimations===animations) { attentionAnimations=[];attentionOverlay.remove(); }}).catch(()=>{});
   }
   function showAttention() {
+    const opacity=attentionOverlay?.isConnected ? Number(getComputedStyle(attentionTint).opacity) : 0;
     clearAttention();
     if (!pickerBadge?.isConnected) return;
     if (!attentionOverlay) {
@@ -199,13 +208,13 @@
     Object.assign(attentionOutline.style,{left:`${bounds.left-2}px`,top:`${bounds.top-2}px`,width:`${bounds.width+4}px`,height:`${bounds.height+4}px`,opacity:'0'});
     document.documentElement.append(attentionOverlay);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      attentionOutline.style.opacity='1'; attentionTimer=setTimeout(clearAttention,attentionTiming.reduced); return;
+      attentionTint.style.opacity='0.5';attentionOutline.style.opacity='1';
+      attentionTimer=setTimeout(()=>{attentionOutline.style.opacity='0';attentionTimer=null;},attentionTiming.reduced); return;
     }
     const frames=[{opacity:0},{opacity:1,offset:0.3},{opacity:0}];
-    const animations=[attentionTint.animate(frames,{duration:attentionTiming.page,easing:'ease-in-out'}),
+    const animations=[attentionTint.animate([{opacity},{opacity:0.5}],{duration:attentionTiming.page,easing:'ease-in-out',fill:'forwards'}),
       ...[attentionOutline,badgeAttention].map(element=>element.animate(frames,{delay:attentionTiming.delay,duration:attentionTiming.dialogue,easing:'ease-in-out'}))];
     attentionAnimations=animations;
-    Promise.all(animations.map(animation=>animation.finished)).then(()=>{if(attentionAnimations===animations)clearAttention();}).catch(()=>{});
   }
   function unhighlight() {
     if (tooltip) { tooltip.remove(); tooltip=null; }
