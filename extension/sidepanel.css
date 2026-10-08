@@ -220,14 +220,6 @@ h1 img {
   opacity: 0.6;
 }
 
-.notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 14px;
-}
-
 /* Page picking and replacement editor */
 
 .font-choice {
@@ -311,6 +303,7 @@ h1 img {
   gap: 8px;
   padding: 4px 0 12px;
 }
+.pair-source .pair-body:has(.note:empty):has(.error[hidden]) { display: none; }
 
 .pair-edit,
 .pair-remove {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {attachPanel} from './native-panel.mjs';
+import {attachPanel,pagePicker,cancelPagePick} from './native-panel.mjs';
 
 export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await worker.evaluate(()=>new Promise((resolve,reject)=>{const deadline=Date.now()+5000;function ready(){if(chrome.action.onClicked.hasListeners())resolve();else if(Date.now()>deadline)reject(new Error('Toolbar listener not ready'));else setTimeout(ready,20);}ready();}));
@@ -23,16 +23,17 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
   if(property==='font')return getComputedStyle(element).fontFamily;
   if(property==='overflow')return element.scrollWidth>element.clientWidth;
   const rect=host.getBoundingClientRect();
-  return {hidden:!rect.width,left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,background:getComputedStyle(host).backgroundColor,rows:root.querySelectorAll('.pair').length,source:root.querySelector('.pair-from')?.textContent,destination:root.querySelector('.pair-to')?.textContent,editing:!root.getElementById('steps').hidden,picking:!root.getElementById('picking').hidden,loading:root.getElementById('note').classList.contains('is-loading'),note:root.getElementById('note').textContent,error:root.getElementById('error').textContent,spinner:getComputedStyle(root.getElementById('note'),'::before').animationName};
+  return {hidden:!rect.width,left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,background:getComputedStyle(host).backgroundColor,rows:root.querySelectorAll('.pair').length,source:root.querySelector('.pair-from')?.textContent,destination:root.querySelector('.pair-to')?.textContent,editing:!root.getElementById('steps').hidden,picking:!!root.getElementById('view-main').dataset.picking,loading:root.getElementById('note').classList.contains('is-loading'),note:root.getElementById('note').textContent,error:root.getElementById('error').textContent,spinner:getComputedStyle(root.getElementById('note'),'::before').animationName};
  },args:[args]}))[0].result,{tabId,selector,property});
- const wait=async predicate=>{const end=Date.now()+20000;let info;while(Date.now()<end){info=await inspect();if(predicate(info))return info;await page.waitForTimeout(40);}await page.screenshot({path:'test-results/floating-failure.png'});const title=await worker.evaluate(tabId=>chrome.action.getTitle({tabId}),tabId);throw new Error('Floating panel did not settle: '+JSON.stringify({info,title}));};
+ const wait=async predicate=>{const end=Date.now()+20000;let info;while(Date.now()<end){info=await inspect();if(predicate(info))return info;await page.waitForTimeout(40);}await page.screenshot({path:'test-results/floating-failure.png'});const title=await worker.evaluate(tabId=>chrome.action.getTitle({tabId}),tabId);const native=await docked.evaluate("JSON.stringify({text:document.body.innerText,error:document.getElementById('error')?.textContent,trace:window.__modeTrace})").catch(error=>error.message);throw new Error('Floating panel did not settle: '+JSON.stringify({info,title,native}));};
  const click=async selector=>page.mouse.click(...Object.values(await inspect(selector,'point')));
  const waitMode=mode=>worker.evaluate(async expected=>{const end=Date.now()+5000;while(Date.now()<end){if((await chrome.storage.local.get('panelMode')).panelMode===expected)return;await new Promise(resolve=>setTimeout(resolve,20));}throw new Error('Panel mode was not saved: '+expected);},mode);
  const choose=async family=>{await click('#search');await page.keyboard.press('ControlOrMeta+A');await page.keyboard.type(family);await click(`.result[data-family="${family}"]`);await wait(info=>info && !info.editing && !info.loading);};
  const width=await page.evaluate(()=>innerWidth);
  await trigger();
  tabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(tab=>tab.url===url).id,page.url());
- let docked=await nativePanel();await docked.wait("!document.getElementById('view-main').hidden");
+ let docked=await nativePanel();await docked.wait("document.getElementById('view-main').dataset.picking==='source'");
+ await docked.evaluate("(()=>{window.__modeTrace=[];document.getElementById('mode-toggle').addEventListener('click',()=>window.__modeTrace.push('click'));const send=chrome.runtime.sendMessage.bind(chrome.runtime);chrome.runtime.sendMessage=async message=>{window.__modeTrace.push(message);const response=await send(message);window.__modeTrace.push(response);return response;};})()");
  await docked.click('#mode-toggle');await wait(info=>info && !info.hidden && !info.picking);
  await waitMode('floating');
  assert.equal(await inspect('.panel','text').then(text=>text.includes('Notes') || text.includes('Origin is the first CSS family')),false);
@@ -58,6 +59,10 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await click('#another');await wait(info=>info?.picking);await page.locator('#generic').click();await wait(info=>info?.rows===2 && info.editing);await choose('Lora');
  assert.equal((await inspect()).rows,2);assert.match(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  await click('.pair:nth-child(2) .pair-edit');await wait(info=>info?.editing);await click('#pick-dest');await wait(info=>info?.picking);
+ assert.match((await pagePicker(worker,page)).text,/Pick the replacement font/);
+ assert.equal(await inspect('.panel','text').then(text=>text.includes('Hover text to see its font') || text.includes('Click text on the page')),false);
+ await cancelPagePick(worker,page);await wait(info=>info && !info.picking);
+ await click('#pick-dest');await wait(info=>info?.picking);
  await page.locator('#body').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Inter');assert.equal(await page.locator('#body').evaluate(e=>getComputedStyle(e).cursor),'pointer');
  await page.locator('#body').click();await wait(info=>info && !info.picking && !info.editing);
  assert.equal(await inspect('.pair:nth-child(2) .pair-to','text'),'Inter');
@@ -67,11 +72,15 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  let after=await inspect();assert(after.left<before.left-100);assert(after.top>before.top+50);
  await click('#move-panel');await page.keyboard.press('ArrowRight');assert.equal(Math.round((await inspect()).left-after.left),10);
  await page.setViewportSize({width:360,height:640});after=await wait(info=>info && info.left>=8 && info.right<=352 && info.bottom<=632);assert.equal(await inspect('.panel','overflow'),false);
- await page.screenshot({path:'test-results/floating-narrow.png'});await page.setViewportSize({width:1280,height:900});
+ await page.screenshot({path:'test-results/floating-narrow.png'});
+ await click('#another');await wait(info=>info?.picking);await page.setViewportSize({width:320,height:640});
+ const picker=await pagePicker(worker,page);assert(picker.left>=12 && picker.right<=308 && !picker.overflow);
+ await page.screenshot({path:'test-results/page-picker-narrow.png'});await cancelPagePick(worker,page);await wait(info=>!info.picking);
+ await page.setViewportSize({width:1280,height:900});
  passed('floating panel supports multiple swaps, pointer dragging, keyboard movement and viewport clamping');
  const fontBeforeDock=await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),genericBeforeDock=await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily);
  await click('#another');await wait(info=>info?.picking);await click('#mode-toggle');
- docked=await nativePanel();await docked.wait("document.querySelectorAll('.pair').length===2 && document.getElementById('picking').hidden");
+ docked=await nativePanel();await docked.wait("document.querySelectorAll('.pair').length===2 && !document.getElementById('view-main').dataset.picking");
  await wait(info=>info?.hidden);assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
  assert.equal(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),fontBeforeDock);
  assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),genericBeforeDock);
@@ -89,7 +98,7 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await click('#another');await wait(info=>info?.picking);
  const uiPoint=await inspect('h1','point');await page.mouse.move(uiPoint.x,uiPoint.y);
  assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);
- await click('#cancel');await wait(info=>!info.picking);assert.equal((await inspect()).rows,2);
+ await cancelPagePick(worker,page);await wait(info=>!info.picking);assert.equal((await inspect()).rows,2);
  await click('#another');await wait(info=>info?.picking);await page.keyboard.press('Escape');await wait(info=>!info.picking);assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
  await click('#another');await wait(info=>info?.picking);await click('#close-panel');await wait(info=>info?.hidden);
  await page.waitForFunction(()=>!document.querySelector('[data-font-swap-picker]'));
@@ -99,6 +108,8 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  passed('floating controls are excluded from picking; close cancels picking and reopening preserves swaps');
  await page.goto(fixtureURL+'/strict-ui');await trigger();await wait(info=>info?.picking);
  assert.notEqual((await inspect()).background,'rgba(0, 0, 0, 0)');
+ await page.screenshot({path:'test-results/page-picker.png'});await cancelPagePick(worker,page);await wait(info=>!info.picking);
+ await click('.pair-source .pair-edit');await wait(info=>info?.picking);
  await page.locator('#body').click();await wait(info=>info?.editing);await choose('Inter');
  assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  await page.screenshot({path:'test-results/floating-strict.png'});

@@ -146,3 +146,10 @@ All 46 end-to-end checks and five unit tests passed. The floating production man
 One manifest and ZIP now include both native side panel and floating panel. The header icon switches modes, cancels active picking and preserves multiple font swaps. The toolbar remembers the last mode across browser restarts. New installs start in the side panel. Notes and the CSS-family/fallback explanation are removed from both modes.
 
 Five unit tests and all 48 end-to-end checks passed. Mode handoffs were tested using real pointer clicks in both directions, with multiple swaps active, picking cancellation, panel visibility and mode storage. The Chrome 116 through 140 close fallback was exercised with close() unavailable in Chrome 152. Existing font rendering, loading, Undo, strict CSP/Trusted Types, dragging, narrow layouts and light/dark checks passed. Temporary browsers, profiles and servers were closed.
+
+
+## Page picking guidance v0.4.1
+
+Picking instructions and Cancel now appear only on the webpage, for source and replacement picks in both panel modes. The compact isolated card has an accent pipette, a stronger title, aligned secondary help text, and a separate Cancel button with an Esc keycap. The accordion keeps its blinking dashed source row without duplicate instructions.
+
+Five unit tests and all 48 browser checks passed. Checks cover real pointer clicks on page-level Cancel, preserving existing swaps, source and replacement guidance, a 320px viewport, strict CSP and Trusted Types, both panel modes, Escape, instant replacements and remembered mode. Native browser test clicks wait for stable control geometry before dispatching pointer events. Temporary browsers, profiles and servers were closed.

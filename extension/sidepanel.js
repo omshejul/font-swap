@@ -16,10 +16,7 @@ const els = {
   mode: $('mode-toggle'),
   connectError: $('connect-error'),
   retry: $('retry'),
-  picking: $('picking'),
-  pickingHome: $('picking-home'),
   messagesHome: $('messages-home'),
-  cancel: $('cancel'),
   pairs: $('pairs'),
   stepsHome: $('steps-home'),
   steps: $('steps'),
@@ -160,13 +157,12 @@ function render() {
   els.undo.hidden = !rules.length;
   els.undo.disabled = busy;
   els.mode.disabled = busy;
-  els.picking.hidden = !state.picking;
+  views.main.dataset.picking = state.picking || '';
   const inline = renderPairs(rules, editing, waitingForSource);
 
   els.steps.hidden = !editing;
   els.stepsHome.hidden = !editing || inline;
   els.another.hidden = waitingForSource;
-  els.picking.querySelector('p').textContent = state.picking === 'destination' ? 'Click the replacement font on the page' : 'Click text on the page';
   els.search.disabled = !state.source || busy;
   els.pickDest.hidden = !canSearch;
   renderResults(canSearch);
@@ -191,7 +187,6 @@ function renderPairs(rules, editing, waitingForSource) {
   pairsSignature = signature;
   // Keep the single editor alive while rebuilding its accordion rows.
   els.stepsHome.append(els.steps);
-  els.pickingHome.append(els.picking);
   els.messagesHome.append(els.note,els.error);
   els.pairs.replaceChildren(...rows.map((rule) => {
     const from = rule.source;
@@ -238,10 +233,7 @@ function renderPairs(rules, editing, waitingForSource) {
     }
     header.append(edit, remove);
     if (open) {
-      if (state.picking) body.append(els.picking);
-      if (waiting) {
-        if (state.picking) body.append(Object.assign(document.createElement('p'), {className:'note',textContent:'Hover text to see its font. Click to pick it.'}));
-      } else body.append(els.steps);
+      if (!waiting) body.append(els.steps);
       body.append(els.note,els.error);
     }
     item.append(header, body);
@@ -371,7 +363,6 @@ els.mode.addEventListener('click', async () => {
 });
 
 els.retry.addEventListener('click', connect);
-els.cancel.addEventListener('click', () => run('cancel'));
 els.undo.addEventListener('click', () => run('undo'));
 els.another.addEventListener('click', () => run('pick', { mode: 'source' }));
 els.pickDest.addEventListener('click', () => run('pick', { mode: 'destination' }));
