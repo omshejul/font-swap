@@ -173,8 +173,12 @@ async function panel(message, permission) {
     if (!destination || !['google','page'].includes(destination.kind) || typeof destination.family !== 'string' || destination.family.length > 200) throw new Error('Choose a destination font.');
     const prepared = await page(tabId,frameId,'prepare',{scope:message.scope});
     if (!prepared.styles.length) throw new Error('No matching text. Pick text or choose a font used on this page.');
-    const font = destination.kind === 'google' ? await loadGoogleFont(destination.family,prepared.styles) : null;
-    await page(tabId,frameId,'preview',{destination,scope:message.scope,font,revision:prepared.revision});
+    const token=crypto.randomUUID();
+    await page(tabId,0,'loading',{family:destination.family,token}).catch(()=>{});
+    try {
+      const font = destination.kind === 'google' ? await loadGoogleFont(destination.family,prepared.styles) : null;
+      await page(tabId,frameId,'preview',{destination,scope:message.scope,font,revision:prepared.revision});
+    } finally { await page(tabId,0,'loading',{token}).catch(()=>{}); }
   } else if (action==='undo') {
     const results=await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'undo')));
     if(results.some(result=>result.status==='rejected')) throw new Error('A frame changed. Reopen SwapFont to restore the remaining swaps.');

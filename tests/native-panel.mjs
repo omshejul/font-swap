@@ -70,7 +70,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
    assert.equal(await panel.evaluate(`window.__pressedResult===document.querySelector('#results .result[data-family="${family}"]')`),true,'Page refresh replaced the pressed result');
    await panel.command('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
   } else await panel.click(`#results .result[data-family="${family}"]`);
-  await panel.wait(`document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('${family}')`);
+  await panel.wait(`document.getElementById('steps').hidden && !document.getElementById('view-main').inert && [...document.querySelectorAll('.pair-to')].some(label=>label.textContent==='${family}')`);
  };
  await panel.wait("!!document.getElementById('view-main').dataset.picking");
  await panel.wait("document.querySelector('.google-fonts-logo').naturalWidth>0");
@@ -107,7 +107,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await panel.click('#search');await panel.command('Input.insertText',{text:'Inter'});
  await panel.wait(`!!document.querySelector('#results .result[data-family="Inter"]')`);
  await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
- await panel.wait("document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('Inter')");
+ await panel.wait("document.getElementById('steps').hidden && !document.getElementById('view-main').inert && [...document.querySelectorAll('.pair-to')].some(label=>label.textContent==='Inter')");
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);
  await panel.click('#undo');await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");assert.doesNotMatch(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  passed('native panel searches, applies instantly, edits by keyboard and undoes on public iana.org');
@@ -168,7 +168,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await panel.click('#undo');await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),'monospace');
  passed('native panel removes one pair independently and Undo all restores the rest');
  await panel.click('.pair-source .pair-edit');await page.locator('#body').click();await panel.wait("!document.getElementById('pick-dest').hidden");await panel.click('#pick-dest');await page.locator('#generic').click();
- await panel.wait("document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('monospace')");assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/^monospace,/);await panel.click('#undo');
+ await panel.wait("document.getElementById('steps').hidden && !document.getElementById('view-main').inert && [...document.querySelectorAll('.pair-to')].some(label=>label.textContent==='monospace')");assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/^monospace,/);await panel.click('#undo');
  passed('native panel page-picked destination applies immediately and collapses to pair');
  await page.reload();await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");await panel.click('.pair-source .pair-edit');await page.keyboard.press('Escape');await panel.wait("!document.getElementById('view-main').dataset.picking");passed('native panel reconnects after navigation and Escape cancels picker');
  await page.close();await browserCDP.detach();
