@@ -269,7 +269,7 @@ async function run(action, payload = {}, family = '') {
   return Boolean(response.ok);
 }
 
-async function choose(family) {
+async function choose(family, focusRow = true) {
   const key = sourceKey(state);
   if (!key) return;
   const ok = await run('preview', { destination: { kind: 'google', family }, scope: 'all' }, family);
@@ -278,7 +278,7 @@ async function choose(family) {
   els.search.value = '';
   render();
   const rule = state.rules.find(rule => `${rule.frameId}:${rule.source}` === key);
-  $(`edit-${rule?.frameId}-${rule?.id}`)?.focus();
+  if (focusRow) $(`edit-${rule?.frameId}-${rule?.id}`)?.focus();
 }
 
 // Search
@@ -400,7 +400,7 @@ els.pairs.addEventListener('click', async (event) => {
       if (state.picking) await run('cancel');
       doneKey = sourceKey(state);
       render();
-      $(button.id)?.focus();
+      if (event.detail === 0) $(button.id)?.focus();
       return;
     }
     if (await run('select', payload)) {
@@ -439,7 +439,7 @@ els.search.addEventListener('keydown', (event) => {
 els.results.addEventListener('mousedown', (event) => event.preventDefault());
 els.results.addEventListener('click', (event) => {
   const option = event.target.closest('.result');
-  if (option) choose(matches[Number(option.dataset.index)].family);
+  if (option) choose(matches[Number(option.dataset.index)].family, event.detail === 0);
 });
 
 chrome.runtime.onMessage.addListener((message) => {
