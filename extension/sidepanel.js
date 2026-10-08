@@ -351,7 +351,10 @@ els.pickDest.addEventListener('click', () => run('pick', { mode: 'destination' }
 els.pairs.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button || busy) return;
-  if (button.dataset.action === 'cancel-pick') { await run('cancel'); return; }
+  if (button.dataset.action === 'cancel-pick') {
+    if (!event.target.closest('.pair-from')) await run('cancel');
+    return;
+  }
   if (button.dataset.action.startsWith('draft-')) {
     if (state.picking) await run('cancel');
     if (button.dataset.action === 'draft-remove') { dismissedKey = sourceKey(state); doneKey = dismissedKey; }

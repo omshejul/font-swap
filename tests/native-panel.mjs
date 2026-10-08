@@ -80,6 +80,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await choose('Inter');await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting .pair-body #picking')");
  assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.pair-awaiting .pair-from')).borderStyle"),'dotted');
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-from').textContent"),'Pick from page');
+ await panel.click('.pair-awaiting .pair-from');assert.equal(await panel.evaluate("document.getElementById('picking').hidden"),false);
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),2);
  await panel.click('#cancel');await panel.wait("!document.querySelector('.pair-awaiting')");
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);
