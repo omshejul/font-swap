@@ -45,6 +45,9 @@
   const close=control('close-panel','Close SwapFont',['m6 6 12 12M18 6 6 18']);
   header.prepend(grip); header.append(close);
   const previousFocus=document.activeElement;
+  chrome.runtime.onMessage.addListener((message,sender)=>{
+    if (sender.id===chrome.runtime.id && message.type==='HIDE_FLOATING') host.style.setProperty('display','none','important');
+  });
   close.addEventListener('click',()=>{
     host.style.setProperty('display','none','important');
     chrome.runtime.sendMessage({type:'PANEL',action:'cancel'}).catch(()=>{});

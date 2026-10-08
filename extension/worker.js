@@ -2,8 +2,7 @@ import {getCatalog, loadGoogleFont} from './fonts.js';
 
 const frames = new Map();
 const selected = new Map();
-const floating = !chrome.runtime.getManifest().side_panel;
-if (!floating) chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(() => {});
+chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(() => {});
 async function page(tabId, frameId, action, payload = {}) {
   const result = await chrome.tabs.sendMessage(tabId, {type:'FONT_SWAP',action,...payload}, {frameId});
   if (result?.error) throw new Error(result.error);
@@ -55,12 +54,48 @@ async function broadcast(tabId) {
 }
 async function notify(tabId,result) {
   const message={type:'STATE_CHANGED',tabId,state:result};
-  if (floating) await chrome.tabs.sendMessage(tabId,message,{frameId:0}).catch(()=>{});
-  else await chrome.runtime.sendMessage(message).catch(()=>{});
+  await Promise.allSettled([
+    chrome.tabs.sendMessage(tabId,message,{frameId:0}),
+    chrome.runtime.sendMessage(message),
+  ]);
+}
+
+async function openFloating(tabId, startPicking=false) {
+  const current=await connect(tabId);
+  await chrome.scripting.executeScript({target:{tabId},files:['floating.js']});
+  await chrome.scripting.executeScript({target:{tabId},files:['sidepanel.js']});
+  if (startPicking && !current.source) await panel({action:'pick',tabId,mode:'source'});
+  else await broadcast(tabId);
+}
+async function hideFloating(windowId) {
+  const tabs=await chrome.tabs.query({windowId});
+  await Promise.allSettled(tabs.map(tab=>chrome.tabs.sendMessage(tab.id,{type:'HIDE_FLOATING'},{frameId:0})));
+}
+async function closeSidePanel(windowId) {
+  if (chrome.sidePanel.close) await chrome.sidePanel.close({windowId});
+  else {
+    // Chrome 116–140 can close by disabling, then restore availability for the next dock click.
+    await chrome.sidePanel.setOptions({enabled:false});
+    await chrome.sidePanel.setOptions({enabled:true});
+  }
+}
+async function switchMode(tabId,mode) {
+  if (!['floating','sidepanel'].includes(mode)) throw new Error('Choose a panel mode.');
+  // Keep open() in the dock click's original user gesture, before any await.
+  if (mode==='sidepanel') await chrome.sidePanel.open({tabId});
+  const tab=await chrome.tabs.get(tabId);
+  await panel({action:'cancel',tabId});
+  if (mode==='floating') {
+    await openFloating(tabId);
+    await closeSidePanel(tab.windowId);
+  } else await hideFloating(tab.windowId);
+  await chrome.storage.local.set({panelMode:mode});
+  return {};
 }
 async function panel(message) {
   const {action,tabId} = message;
-  if (action === 'ui' && floating) {
+  if (action === 'mode') return switchMode(tabId,message.mode);
+  if (action === 'ui') {
     const [html,css,icon] = await Promise.all(['sidepanel.html','sidepanel.css','icons/icon.svg'].map(file=>fetch(chrome.runtime.getURL(file)).then(r=>r.text())));
     return {html,css,icon,tabId};
   }
@@ -102,7 +137,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
   let work;
   if (message.type === 'PANEL' && !sender.tab && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message);
   // Floating controls are trusted content-script code. Always use the sender's tab.
-  else if (message.type === 'PANEL' && floating && sender.tab && sender.frameId === 0) work = panel({...message,tabId:sender.tab.id});
+  else if (message.type === 'PANEL' && sender.tab && sender.frameId === 0 && !sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel({...message,tabId:sender.tab.id});
   // Extension pages opened as a tab also carry sender.tab.
   else if (message.type === 'PANEL' && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message);
   else if (message.type === 'FONT_SWAP_CSS' && sender.tab) work = (async () => {
@@ -125,26 +160,29 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
   work.then(value=>respond({ok:true,...value}),error=>respond({ok:false,error:error.message || 'SwapFont could not complete this action.'}));
   return true;
 });
-chrome.action.onClicked.addListener(async tab => {
-  if (floating) {
-    try {
+chrome.action.onClicked.addListener(tab => chrome.storage.local.get('panelMode', stored => {
+  // Chrome preserves the gesture in extension API callbacks, unlike an await continuation.
+  const floating=stored.panelMode==='floating';
+  const opening=floating ? openFloating(tab.id,true) : chrome.sidePanel.open({tabId:tab.id});
+  (async () => {
+  try {
+    await opening;
+    if (floating) {
+      await closeSidePanel(tab.windowId);
+    } else {
+      await hideFloating(tab.windowId);
       const current=await connect(tab.id);
-      await chrome.scripting.executeScript({target:{tabId:tab.id},files:['floating.js']});
-      await chrome.scripting.executeScript({target:{tabId:tab.id},files:['sidepanel.js']});
       if (!current.source) await panel({action:'pick',tabId:tab.id,mode:'source'});
       else await broadcast(tab.id);
-      await chrome.action.setBadgeText({tabId:tab.id,text:''});
-      await chrome.action.setTitle({tabId:tab.id,title:'Open SwapFont Floating'});
-    } catch (error) {
-      await chrome.action.setBadgeText({tabId:tab.id,text:'!'});
-      await chrome.action.setTitle({tabId:tab.id,title:error.message});
     }
-    return;
+    await chrome.action.setBadgeText({tabId:tab.id,text:''});
+    await chrome.action.setTitle({tabId:tab.id,title:'Open SwapFont'});
+  } catch (error) {
+    await chrome.action.setBadgeText({tabId:tab.id,text:'!'});
+    await chrome.action.setTitle({tabId:tab.id,title:error.message});
   }
-  // Open during the original toolbar gesture; normal action grants activeTab.
-  chrome.sidePanel.open({tabId:tab.id}).catch(()=>{});
-  try { await connect(tab.id); await panel({action:'pick',tabId:tab.id,mode:'source'}); } catch { /* The panel presents connection errors. */ }
-});
+  })();
+}));
 chrome.tabs.onRemoved.addListener(tabId => { frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); });
 chrome.webNavigation.onCommitted.addListener(({tabId,frameId}) => {
   if (frameId === 0) { frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); }

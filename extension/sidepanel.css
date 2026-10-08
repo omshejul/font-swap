@@ -102,6 +102,7 @@ input {
 
 .panel-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -120,6 +121,11 @@ h1 {
 h1 img {
   border-radius: 5px;
 }
+
+.panel-header h1 { margin-right: auto; }
+.icon-button { display: grid; place-items: center; flex: none; width: 28px; height: 30px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
+.icon-button:hover:not(:disabled) { background: var(--surface); color: var(--text); }
+.icon-button:disabled { opacity: 0.6; cursor: default; }
 
 /* Buttons */
 
@@ -426,8 +432,7 @@ h1 img {
 
 /* Messages */
 
-.note,
-.warnings {
+.note {
   color: var(--muted);
   font-size: 13px;
   overflow-wrap: anywhere;
@@ -450,23 +455,4 @@ h1 img {
 .error {
   color: var(--danger);
   overflow-wrap: anywhere;
-}
-
-.warnings summary {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  list-style: none;
-  cursor: pointer;
-}
-
-.warnings summary::-webkit-details-marker { display: none; }
-.notes-chevron { flex: none; }
-.warnings[open] .notes-chevron { transform: rotate(90deg); }
-
-.warnings ul {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
 }

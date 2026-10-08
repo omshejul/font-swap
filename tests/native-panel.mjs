@@ -103,7 +103,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  passed('empty panel reuses the Pick from page row; clicking starts picking and Escape leaves it idle without an intro screen');
  await page.goto(fixtureURL);await trigger();await panel.wait("!document.getElementById('picking').hidden");
  await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .pair-from')?.textContent==='Arial'");
- assert.match(await panel.evaluate("document.getElementById('warning-list').textContent"),/frames.*not accessible/i);
+ assert.equal(await panel.evaluate("!!document.getElementById('warnings') || !!document.getElementById('warning-list')"),false);
  await choose('Inter');await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting .pair-body #picking')");
  assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.pair-awaiting .pair-from')).borderStyle"),'dashed');
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-from').textContent"),'Pick from page');
@@ -143,9 +143,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.equal(await panel.evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'320px panel overflow');
  await panel.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'light'}]});await panel.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
  const light=await panel.evaluate('getComputedStyle(document.body).backgroundColor');await panel.screenshot('panel-light.png');await panel.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'dark'}]});await panel.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');assert.notEqual(await panel.evaluate('getComputedStyle(document.body).backgroundColor'),light);await panel.screenshot('panel-dark.png');
- await panel.click('#warnings summary');assert.equal(await panel.evaluate("document.getElementById('warnings').open"),true);
- await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
- await panel.wait("!document.getElementById('warnings').open");
+ assert.equal(await panel.evaluate("document.body.textContent.includes('Notes') || document.body.textContent.includes('Origin is the first CSS family')"),false);
  passed('expanded two-pair accordion fits 320px and renders light and dark themes');
  await panel.click('.pair-remove');await panel.wait("document.querySelectorAll('.pair').length===1");assert.doesNotMatch(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);assert.match(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  await panel.click('#undo');await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),'monospace');
