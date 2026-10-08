@@ -5,6 +5,8 @@ import path from 'node:path';
 import http from 'node:http';
 import assert from 'node:assert/strict';
 import {testNativePanel} from './native-panel.mjs';
+import {testFloatingPanel} from './floating-panel.mjs';
+import {buildFloating} from '../scripts/build-floating.mjs';
 const temp=await mkdtemp(path.join(tmpdir(),'font-swap-e2e-'));
 const extension=path.join(temp,'extension'); await cp('extension',extension,{recursive:true});
 const manifest=JSON.parse(await readFile(path.join(extension,'manifest.json')));
@@ -25,6 +27,7 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/fixture.css'){res.setHeader('Content-Type','text/css');res.end('body {font-family:Arial,sans-serif;padding:30px} .fallback {font-family:Missing,Arial,sans-serif}.similar{font-family:"Arial Narrow",sans-serif}.icon{font-family:Arial} iframe{height:80px}');return;}
  if(req.url==='/fixture.js'){res.setHeader('Content-Type','application/javascript');res.end(fixtureJS);return;}
  if(req.url==='/strict') res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; font-src 'none'; connect-src 'none'; frame-src http://127.0.0.1:* http://localhost:*");
+ if(req.url==='/strict-ui') res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'none'; font-src 'none'; frame-src 'none'; trusted-types 'none'; require-trusted-types-for 'script'");
  res.setHeader('Content-Type','text/html');res.end(req.url==='/frame'?'<p id="frame-text" style="font-family:Arial,sans-serif">Embedded text</p>':fixture.replaceAll('PORT',port));
 });
 await new Promise(resolve=>server.listen(0,'0.0.0.0',resolve));port=server.address().port;
@@ -109,6 +112,11 @@ try {
  context=await chromium.launchPersistentContext(path.join(temp,'production-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${path.resolve('extension')}`,`--load-extension=${path.resolve('extension')}`]});
  const productionWorker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
  await testNativePanel(context,productionWorker,`http://127.0.0.1:${port}`,passed);
+ await context.close();
+ const floatingExtension=await buildFloating(path.join(temp,'floating-extension'));
+ context=await chromium.launchPersistentContext(path.join(temp,'floating-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${floatingExtension}`,`--load-extension=${floatingExtension}`]});
+ const floatingWorker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+ await testFloatingPanel(context,floatingWorker,`http://127.0.0.1:${port}`,passed);
  await mkdir('test-results',{recursive:true});await writeFile('test-results/e2e.json',JSON.stringify({date:new Date().toISOString(),browser:await context.browser().version(),checks},null,2));
  console.log(`${checks.length} end-to-end checks passed.`);
 } finally {if(context)await context.close();await new Promise(resolve=>server.close(resolve));await rm(temp,{recursive:true,force:true});}

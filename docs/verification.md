@@ -1,8 +1,8 @@
 # Verification
 
-Verified 2026-10-08T05:16:42.460Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T05:37:57.653Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
-Manifest and syntax checks passed. Five unit tests passed. All 40 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
+Manifest and syntax checks passed. Five unit tests passed. All 46 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
 The fixture browser used loopback-only permissions in a temporary manifest copy to exercise permitted frames. The native-panel browser used the exact production manifest and a real toolbar action. Test browsers, fixture servers and temporary profiles were closed.
 
@@ -134,3 +134,9 @@ Verified the bright and dim phases in light and dark themes, 16px icon rendering
 Added a small spinner beside the loading message inside the active font accordion. It appears while downloading a Google Font and for page-picked replacements, then clears on completion or failure. The spinner reuses the connection indicator and respects reduced motion.
 
 Held a real Google Font download open in the production-manifest native panel, verified its loading message and spinner inside the accordion, then released it and confirmed the applied swap and cleared spinner. All 40 end-to-end checks and five unit tests passed.
+
+## Floating panel v0.3.0
+
+Added a separately packaged SwapFont Floating build. It reuses the sidebar controls inside a closed shadow root, with a draggable header, keyboard movement, viewport clamping and a close button. Closing stops picking and keeps active swaps. Reopening reuses the panel. Its text and controls are excluded from detection and font replacement.
+
+All 46 end-to-end checks and five unit tests passed. The floating production manifest was tested for unchanged page width, real Google Font loading and spinner, source and replacement picking, multiple swaps, accordion editing, drag and keyboard movement, narrow viewport, Escape, close/reopen, Undo, light/dark themes and strict CSP with frame-src none, style-src none and Trusted Types restrictions. No additional permanent website permission or web-accessible code is needed.

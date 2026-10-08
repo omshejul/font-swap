@@ -24,7 +24,7 @@
       let element;
       while ((element=walker.nextNode())) {
         if (++visited > 30000) break;
-        if (element===tooltip || element===pickerBadge || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
+        if (element===tooltip || element===pickerBadge || element.hasAttribute('data-font-swap-panel') || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
         const shadow = shadowOf(element); if (shadow) walk(shadow);
         const text = textOf(element); if (!text) continue;
         const css = getComputedStyle(element);
@@ -41,8 +41,9 @@
     for (const root of roots) if (!observers.has(root)) {
       const observer = new MutationObserver(changes => {
         if (!active) return;
-        changes=changes.filter(change=>![tooltip,pickerBadge].some(ui=>ui && (change.target===ui || ui.contains(change.target))) &&
-          !([...change.addedNodes,...change.removedNodes].length && [...change.addedNodes,...change.removedNodes].every(node=>node===tooltip || node===pickerBadge)));
+        const ui=[tooltip,pickerBadge,globalThis.__fontSwapPanelRoot?.host];
+        changes=changes.filter(change=>!ui.some(node=>node && (change.target===node || node.contains(change.target))) &&
+          !([...change.addedNodes,...change.removedNodes].length && [...change.addedNodes,...change.removedNodes].every(node=>ui.includes(node))));
         if (!changes.length) return;
         if (mutating) { dirty=true; return; }
         if (changes.some(change=>change.type!=='attributes' || ['style','class','hidden'].includes(change.attributeName))) schedule();
@@ -170,6 +171,7 @@
     tooltip.style.setProperty('top',`${Math.max(8,Math.min(event.clientY+18,innerHeight-bounds.height-8))}px`,'important');
   }
   function locate(event) {
+    if (panelEvent(event)) return null;
     let element = event.composedPath().find(n=>n instanceof Element) || event.target;
     // Closed shadow roots hide their child nodes from composedPath.
     let shadow;
@@ -192,7 +194,8 @@
     }
     showName(element,event);
   },true);
-  window.addEventListener('pointerdown',event=>{if(picking) {event.preventDefault();event.stopImmediatePropagation();}},true);
+  const panelEvent = event => event.composedPath().some(node=>node instanceof Element && node.hasAttribute('data-font-swap-panel'));
+  window.addEventListener('pointerdown',event=>{if(picking && !panelEvent(event)) {event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('click',event=>{
     if (!picking) return;
     const element=locate(event); if (!element) return;

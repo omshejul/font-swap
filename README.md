@@ -2,6 +2,10 @@
 
 Private Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly. A native side panel keeps the controls beside the website.
 
+A separate **SwapFont Floating** build puts the same controls in a draggable panel over the page. It starts in the top-right, preserves the website's width, and has a close button. Closing cancels picking and keeps the current swaps; the toolbar icon reopens the panel. Drag the header, or focus its grip and use arrow keys to move it.
+
+Build it with `npm run build:floating`, then load `dist/floating-extension` through Chrome's **Load unpacked**. The regular `extension` folder remains the sidebar build. Packaging produces a ZIP for each version. The floating build uses the existing activeTab permission and does not request sidePanel or permanent website access.
+
 ## Install locally
 
 1. Open `chrome://extensions` in desktop Chrome.
@@ -72,6 +76,7 @@ To refresh the bundled font catalog, run `npm run catalog`. Validate the changed
 - `font-utils.js` parses CSS families and estimates detection confidence.
 - `fonts.js` loads Google font faces and caches downloads.
 - `sidepanel.html`, `.css` and `.js` contain the UI. Claude simplified the panel against `UI-CONTRACT.md`.
+- `floating.js` mounts those same controls in a closed shadow root. Constructed stylesheets isolate their appearance without an iframe, and the picker excludes the entire panel. `scripts/build-floating.mjs` creates its manifest variant.
 
 Shadow-root text uses inline overrides because testing in Chrome 152 found stale computed styles after removing USER stylesheets that matched shadow elements. Shadow elements are excluded from those stylesheets. This is an observed browser behavior, not a claim about every Chrome version.
 
