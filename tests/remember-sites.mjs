@@ -7,12 +7,12 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  const font=selector=>page.locator(selector).evaluate(e=>getComputedStyle(e).fontFamily);
  const restored=()=>page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_') && getComputedStyle(document.querySelector('#generic')).fontFamily.includes('FontSwap_'));
  const key=`site:${new URL(fixtureURL).origin}`;
+ const bindPanel=async()=>{await page.bringToFront();await panel.reload();await panel.waitForFunction(()=>!document.getElementById('view-main').hidden && !document.getElementById('remember-row').hidden);};
  await page.goto(fixtureURL);await ok('connect');await ok('undo');
  await ok('source',{family:'Arial'});await ok('preview',{destination:{kind:'google',family:'Inter'},scope:'all'});
  await ok('source',{family:'monospace'});await ok('preview',{destination:{kind:'google',family:'Lora'},scope:'all'});
- await page.bringToFront();await panel.reload();await panel.waitForFunction(()=>!document.getElementById('view-main').hidden);
  await worker.evaluate(()=>{const request=chrome.permissions.request.bind(chrome.permissions);globalThis.__sitePermissionRequest=request;chrome.permissions.request=options=>{globalThis.__requestedSite=options;return request(options);};});
- await panel.locator('#remember-site').check();
+ await bindPanel();await panel.locator('#remember-site').check();
  await panel.waitForFunction(()=>document.getElementById('remember-site').checked && !document.getElementById('remember-site').disabled);
  assert.deepEqual(await worker.evaluate(()=>globalThis.__requestedSite),{origins:['http://127.0.0.1/*']});
  await worker.evaluate(()=>{chrome.permissions.request=globalThis.__sitePermissionRequest;});
@@ -31,12 +31,12 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  const rule=state.rules.find(rule=>rule.source==='Arial');await ok('select',{ruleId:rule.id,frameId:0});
  await ok('preview',{destination:{kind:'google',family:'Lora'},scope:'all'});
  saved=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key);assert.equal(saved.rules.find(rule=>rule.source==='Arial').destination.family,'Lora');
- await panel.locator('#remember-site').uncheck();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
+ await bindPanel();await panel.locator('#remember-site').uncheck();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
  assert.equal(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key),undefined);
  assert.match(await font('#body'),/FontSwap_/);await page.reload();assert.doesNotMatch(await font('#body'),/FontSwap_/);
  passed('edits update saved pairs; turning remembering off forgets them and keeps the current preview until reload');
  await ok('connect');await ok('source',{family:'Arial'});await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'});
- await panel.locator('#remember-site').check();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
+ await bindPanel();await panel.locator('#remember-site').check();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
  await page.reload();await page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.startsWith('monospace'));
  await ok('connect');await ok('undo');await page.reload();assert.doesNotMatch(await font('#body'),/^monospace/);
  assert.equal(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key),undefined);
@@ -44,14 +44,14 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  // A denied optional permission must leave the preview and unsaved state intact.
  await ok('connect');await ok('source',{family:'Arial'});await ok('preview',{destination:{kind:'google',family:'Inter'},scope:'all'});
  await worker.evaluate(()=>{globalThis.__sitePermissionRequest=chrome.permissions.request;chrome.permissions.request=async()=>false;});
- await panel.locator('#remember-site').click();await panel.waitForFunction(()=>document.getElementById('error').textContent.includes('Chrome needs permission'));
+ await bindPanel();await panel.locator('#remember-site').click();await panel.waitForFunction(()=>document.getElementById('error').textContent.includes('Chrome needs permission'));
  assert.equal(await panel.locator('#remember-site').isChecked(),false);assert.match(await font('#body'),/FontSwap_/);
  assert.equal(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key),undefined);
  await worker.evaluate(()=>{chrome.permissions.request=globalThis.__sitePermissionRequest;});
  passed('denied site permission leaves remembering off, shows an error and preserves the current preview');
  // Leave a Google pair saved for the browser restart check.
  await ok('connect');await ok('source',{family:'Arial'});await ok('preview',{destination:{kind:'google',family:'Inter'},scope:'all'});
- await panel.locator('#remember-site').check();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
+ await bindPanel();await panel.locator('#remember-site').check();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
  await panel.screenshot({path:'test-results/remember-site.png'});
 }
 
