@@ -13,6 +13,7 @@ const els = {
   picking: $('picking'),
   cancel: $('cancel'),
   pairs: $('pairs'),
+  stepsHome: $('steps-home'),
   steps: $('steps'),
   pickSource: $('pick-source'),
   sourceName: $('source-name'),
@@ -144,10 +145,11 @@ function render() {
   els.undo.hidden = !rules.length;
   els.undo.disabled = busy;
   els.picking.hidden = !state.picking;
-  renderPairs(rules);
+  const inline = renderPairs(rules, editing);
 
   els.steps.hidden = !editing;
-  els.another.hidden = editing;
+  els.stepsHome.hidden = !editing || inline;
+  els.another.hidden = !rules.length || (editing && !inline);
   els.sourceName.textContent = state.source || 'Pick font';
   els.pickSource.setAttribute('aria-label', state.source ? `Font to change: ${state.source}. Pick another` : 'Pick font to change');
   els.pickSource.setAttribute('aria-pressed', String(state.picking === 'source'));
@@ -165,25 +167,36 @@ function render() {
   els.warningList.replaceChildren(...warnings.map((text) => Object.assign(document.createElement('li'), { textContent: text })));
 }
 
-function renderPairs(rules) {
+function renderPairs(rules, editing) {
   els.pairs.hidden = !rules.length;
-  const current = sourceKey(state);
-  const signature = JSON.stringify([current, rules.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination)])]);
-  if (signature === pairsSignature) return;
+  const openKey = editing ? sourceKey(state) : '';
+  const inline = rules.some((rule) => `${rule.frameId}:${rule.source}` === openKey);
+  const signature = JSON.stringify([openKey, rules.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination)])]);
+  if (signature === pairsSignature) return inline;
   pairsSignature = signature;
+  // Keep the single editor alive while rebuilding its accordion rows.
+  els.stepsHome.append(els.steps);
   els.pairs.replaceChildren(...rules.map((rule) => {
     const from = rule.source;
     const to = destinationName(rule.destination);
     const item = document.createElement('li');
     item.className = 'pair';
+    const header = Object.assign(document.createElement('div'), { className: 'pair-header' });
+    const body = Object.assign(document.createElement('div'), { className: 'pair-body', id: `pair-${rule.frameId}-${rule.id}` });
+    const open = `${rule.frameId}:${from}` === openKey;
+    body.hidden = !open;
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'pair-edit';
     edit.dataset.action = 'select';
+    edit.id = `edit-${rule.frameId}-${rule.id}`;
     edit.setAttribute('aria-label', `Change ${from} to ${to}`);
-    if (`${rule.frameId}:${from}` === current) edit.setAttribute('aria-current', 'true');
+    edit.setAttribute('aria-expanded', String(open));
+    edit.setAttribute('aria-controls', body.id);
     const arrow = Object.assign(document.createElement('span'), { className: 'pair-arrow', textContent: '→' });
-    edit.append(Object.assign(document.createElement('span'), { textContent: from }), arrow, Object.assign(document.createElement('span'), { textContent: to }));
+    const chevron = Object.assign(document.createElement('span'), { className: 'pair-chevron', textContent: '›' });
+    chevron.setAttribute('aria-hidden', 'true');
+    edit.append(Object.assign(document.createElement('span'), { textContent: from }), arrow, Object.assign(document.createElement('span'), { textContent: to }), chevron);
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'pair-remove';
@@ -194,9 +207,12 @@ function renderPairs(rules) {
       button.dataset.ruleId = rule.id;
       button.dataset.frameId = rule.frameId;
     }
-    item.append(edit, remove);
+    header.append(edit, remove);
+    if (open) body.append(els.steps);
+    item.append(header, body);
     return item;
   }));
+  return inline;
 }
 
 // Actions
@@ -310,10 +326,23 @@ els.pairs.addEventListener('click', async (event) => {
   if (!button) return;
   const payload = { ruleId: button.dataset.ruleId, frameId: Number(button.dataset.frameId) };
   const rule = state.rules.find((entry) => String(entry.id) === payload.ruleId && entry.frameId === payload.frameId);
-  if (rule) payload.ruleId = rule.id;
+  if (busy || !rule) return;
+  payload.ruleId = rule.id;
   if (button.dataset.action === 'select') {
-    doneKey = '';
-    if (await run('select', payload)) els.search.focus();
+    if (button.getAttribute('aria-expanded') === 'true') {
+      if (state.picking) await run('cancel');
+      doneKey = sourceKey(state);
+      render();
+      $(button.id)?.focus();
+      return;
+    }
+    if (await run('select', payload)) {
+      doneKey = '';
+      els.search.value = '';
+      activeIndex = -1;
+      render();
+      els.search.focus();
+    }
   } else if (await run('remove', payload)) {
     (els.another.hidden ? els.pickSource : els.another).focus();
   }

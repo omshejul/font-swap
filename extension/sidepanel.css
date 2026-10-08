@@ -100,6 +100,13 @@ input {
   gap: 8px;
 }
 
+.step-arrow {
+  align-self: center;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 16px;
+}
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -332,14 +339,25 @@ button.step[aria-pressed="true"] {
 
 .pair {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   min-width: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
-.pair:has([aria-current="true"]) {
-  background: var(--accent-soft);
+.pair:has([aria-expanded="true"]) {
+  border-color: var(--accent);
+}
+
+.pair-header {
+  display: flex;
+  min-width: 0;
+}
+
+.pair-body {
+  padding: 4px 10px 10px;
 }
 
 .pair-edit,
@@ -352,6 +370,7 @@ button.step[aria-pressed="true"] {
 
 .pair-edit {
   display: flex;
+  align-items: center;
   flex: 1 1 auto;
   gap: 6px;
   min-width: 0;
@@ -369,6 +388,18 @@ button.step[aria-pressed="true"] {
 .pair-edit .pair-arrow {
   flex: none;
   color: var(--muted);
+}
+
+.pair-edit .pair-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.pair-edit[aria-expanded="true"] .pair-chevron {
+  transform: rotate(90deg);
 }
 
 .pair-remove {
