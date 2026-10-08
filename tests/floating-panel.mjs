@@ -65,7 +65,7 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await cancelPagePick(worker,page);await wait(info=>info && !info.picking);
  await click('#pick-dest');await wait(info=>info?.picking);
  await page.locator('#body').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Inter');assert.equal(await page.locator('#body').evaluate(e=>getComputedStyle(e).cursor),'pointer');
- await page.locator('#body').click();await wait(info=>info && !info.picking && !info.editing);
+ await page.locator('#body').click();await wait(info=>info && !info.picking && !info.editing && !info.loading);
  assert.equal(await inspect('.pair:nth-child(2) .pair-to','text'),'Inter');
  passed('floating replacement picker uses page hover detection and applies the picked font instantly');
  const before=await inspect(),grip=await inspect('#move-panel','point');
