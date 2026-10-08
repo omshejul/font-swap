@@ -51,6 +51,7 @@ let catalog = null;
 let catalogLoading = null;
 let matches = [];
 let activeIndex = -1;
+let switchingMode = false;
 let pairsSignature = '';
 let resultsSignature = '';
 
@@ -359,8 +360,10 @@ function setActive(index, scroll = true) {
 els.mode.addEventListener('click', async () => {
   if (busy || els.mode.disabled || tabId === null) return;
   els.mode.disabled = true;
+  switchingMode = true;
   const response = await send('mode', { mode: floating ? 'sidepanel' : 'floating' });
   els.mode.disabled = false;
+  if (!response.ok) switchingMode = false;
   if (!response.ok && !response.stale) {
     els.connectError.textContent = describeError(response.error);
     if (state) { errorText = describeError(response.error); render(); }
@@ -452,9 +455,9 @@ if (!floating) chrome.tabs.onUpdated.addListener((id, change) => {
   if (id === tabId && change.status === 'complete') scheduleConnect();
 });
 if (!floating) {
-  const cancelPicking = () => { if (tabId !== null) send('cancel'); };
+  const cancelPicking = () => { if (!switchingMode && tabId !== null) send('cancel'); };
   window.addEventListener('pagehide', cancelPicking);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelPicking(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelPicking(); else switchingMode = false; });
 }
 (floating ? root : document).addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && state?.picking) {
