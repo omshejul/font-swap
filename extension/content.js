@@ -209,7 +209,7 @@
         warnings=['Origin is the first CSS family. Fallbacks may render some characters in another font.'];
         status='Choose a font'; revision++; await paint(); announce('picked');
       } else {
-        await paint(); status='Loading font';
+        await paint(); status='Loading font'; announce('changed');
         announce('destination-picked',{destination:visibleRule?.destination || {kind:'page',family:record.family}});
       }
     }).catch(error=>{failureMessage=status=error.message; announce('changed');});

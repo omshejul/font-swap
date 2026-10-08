@@ -65,7 +65,15 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.equal(await panel.evaluate("document.querySelector('.pair-pending .pair-to').textContent"),'Choose font');
  await panel.click('.pair-pending .pair-edit');await panel.wait("document.getElementById('steps').hidden");
  await panel.click('.pair-pending .pair-edit');await panel.wait("!document.getElementById('steps').hidden");
- await choose('Lora',true);assert.match(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ await worker.evaluate(()=>{const original=fetch;globalThis.__restoreFontFetch=()=>{globalThis.fetch=original;globalThis.__releaseFontFetch();};const gate=new Promise(resolve=>globalThis.__releaseFontFetch=resolve);globalThis.fetch=async(...args)=>{if(String(args[0]).startsWith('https://fonts.'))await gate;return original(...args);};});
+ const firstChoice=choose('Lora',true);
+ await panel.wait("document.querySelector('.pair-body:not([hidden]) #note.is-loading')?.textContent==='Loading Lora'");
+ assert.equal(await panel.evaluate("getComputedStyle(document.getElementById('note'),'::before').animationName"),'spin');
+ await panel.screenshot('font-loading.png');
+ await worker.evaluate(()=>globalThis.__restoreFontFetch());await firstChoice;
+ assert.equal(await panel.evaluate("document.getElementById('note').classList.contains('is-loading')"),false);
+ assert.match(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ passed('font download shows an inline spinner in its accordion and clears it after applying');
  passed('a page state update between native pointer press and release preserves the result and applies the font');
  assert.equal(await panel.evaluate("!!document.getElementById('apply') || !!document.getElementById('compare')"),false);
  const appliedFont=await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily);

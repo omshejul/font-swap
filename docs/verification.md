@@ -1,8 +1,8 @@
 # Verification
 
-Verified 2026-10-08T05:03:23.544Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T05:16:42.460Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
-Manifest and syntax checks passed. Five unit tests passed. All 39 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
+Manifest and syntax checks passed. Five unit tests passed. All 40 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
 The fixture browser used loopback-only permissions in a temporary manifest copy to exercise permitted frames. The native-panel browser used the exact production manifest and a real toolbar action. Test browsers, fixture servers and temporary profiles were closed.
 
@@ -128,3 +128,9 @@ Removed the separate intro screen. An empty panel uses the same Pick from page a
 Replaced the hand-drawn eyedropper with the Lucide pipette in the source row, replacement picker and on-page badge. The dashed border now blinks every 0.8 seconds, holding full brightness and 10% opacity between short fades. Text and icon stay steady. Reduced motion and idle rows remain static.
 
 Verified the bright and dim phases in light and dark themes, 16px icon rendering, and reduced motion in the native production-manifest panel. All 39 end-to-end checks and five unit tests passed.
+
+## Font loading feedback v0.2.6
+
+Added a small spinner beside the loading message inside the active font accordion. It appears while downloading a Google Font and for page-picked replacements, then clears on completion or failure. The spinner reuses the connection indicator and respects reduced motion.
+
+Held a real Google Font download open in the production-manifest native panel, verified its loading message and spinner inside the accordion, then released it and confirmed the applied swap and cleared spinner. All 40 end-to-end checks and five unit tests passed.

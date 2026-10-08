@@ -125,7 +125,7 @@ function setState(next) {
     if (previous.picking === 'source' && next.status === 'Choose a font') doneKey = dismissedKey = '';
     else if (changed && next.destination) doneKey = sourceKey(next);
     // A pick that ended without a result explains itself through the page status.
-    noteText = changed || ['Picker cancelled','Choose a font'].includes(next.status) ? '' : next.status || '';
+    noteText = changed || ['Picker cancelled','Choose a font','Loading font'].includes(next.status) ? '' : next.status || '';
   }
   if (next.status === 'Applied' && next.destination && (previous?.picking === 'destination' || previous?.status === 'Loading font')) {
     doneKey = sourceKey(next);
@@ -160,7 +160,9 @@ function render() {
   els.pickDest.hidden = !canSearch;
   renderResults(canSearch);
 
-  els.note.textContent = pending ? `Loading ${pending}` : noteText;
+  const loadingFont = Boolean(pending) || (state.status === 'Loading font' && !state.error && !errorText);
+  els.note.classList.toggle('is-loading', loadingFont);
+  els.note.textContent = pending ? `Loading ${pending}` : loadingFont ? 'Loading font' : noteText;
   const pageError = typeof state.error === 'string' ? state.error.trim() : '';
   const shown = [...new Set([errorText, pageError && describeError(pageError)].filter(Boolean))].join(' ');
   els.error.textContent = shown;
