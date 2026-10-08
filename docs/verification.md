@@ -1,6 +1,6 @@
 # Verification
 
-Verified 2026-10-08T04:00:33.929Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T04:04:26.783Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
 Manifest and syntax checks passed. Five unit tests passed. All 37 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
@@ -35,7 +35,7 @@ The fixture browser used loopback-only permissions in a temporary manifest copy 
 - production manifest toolbar gesture opens native panel and grants activeTab
 - saved pair opens and closes inline without removing the pair or changing the applied font
 - native panel searches, applies instantly, edits by keyboard and undoes on public iana.org
-- adding a font opens a dotted source placeholder with picking controls inside its accordion; Cancel preserves swaps
+- adding a font opens a blinking dashed source placeholder that wraps at 240px with picking controls inside its accordion; Cancel preserves swaps
 - pending row opens, closes and discards without affecting an applied swap
 - native panel adds simultaneous pairs while production permissions protect cross-origin frames
 - switching accordion rows keeps both swaps applied and expands one editor at a time
@@ -105,10 +105,12 @@ Manifest and syntax checks, five unit tests and all 37 browser checks passed. Th
 
 ## Picking feedback in v0.2.2
 
-Starting another source pick opens a pending accordion with a dotted Pick from page label, eyedropper icon, instructions and Cancel inside it. Loading and errors appear in the active row. A temporary on-page eyedropper badge says Pick a font or Pick replacement font. Both pickers use a hand cursor, thin blue outline, translucent fill and font-name tooltip on text. Picking or Escape restores the site's cursor, outline and background. Escape also cancels other permitted frames.
+Starting another source pick opens a pending accordion with a blinking dashed Pick from page label, eyedropper icon, instructions and Cancel inside it. Loading and errors appear in the active row. A temporary on-page eyedropper badge says Pick a font or Pick replacement font. Both pickers use a hand cursor, thin blue outline, translucent fill and font-name tooltip on text. Picking or Escape restores the site's cursor, outline and background. Escape also cancels other permitted frames.
 
 Browser checks cover custom important cursors, restoration on picking and Escape, shadow text, frame cancellation, badge removal, and cancelling a pending accordion without opening or changing an existing swap. Visually checked picking feedback on light and dark blue page backgrounds.
 
 ![Waiting accordion](waiting-dark.png)
 
 ![On-page picking feedback](page-picking.png)
+
+![Narrow waiting accordion with stacked labels](waiting-240-dark.png)

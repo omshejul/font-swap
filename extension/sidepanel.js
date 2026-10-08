@@ -213,7 +213,9 @@ function renderPairs(rules, editing) {
     chevron.append(chevronPath);
     const fromLabel=Object.assign(document.createElement('span'), {className:'pair-from',textContent:from});
     if (waiting) fromLabel.prepend(els.pickDest.querySelector('svg').cloneNode(true));
-    edit.append(fromLabel, arrow, Object.assign(document.createElement('span'), {className:'pair-to', textContent:to}), chevron);
+    const replacement=Object.assign(document.createElement('span'), {className:'pair-destination'});
+    replacement.append(arrow,Object.assign(document.createElement('span'), {className:'pair-to',textContent:to}));
+    edit.append(fromLabel,replacement,chevron);
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'pair-remove';
