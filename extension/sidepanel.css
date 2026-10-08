@@ -286,10 +286,6 @@ h1 img {
   }
 }
 
-.main[aria-busy="true"] {
-  opacity: 0.6;
-}
-
 /* Page picking and replacement editor */
 
 .font-choice {
@@ -519,6 +515,8 @@ h1 img {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 12px;
+  color: var(--text);
 }
 
 .note.is-loading::before {

@@ -23,8 +23,8 @@
     .panel-header h1 { margin-right: auto; }
     .floating-control { display: grid; place-items: center; flex: none; width: 26px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
     .floating-control:hover { background: var(--header-hover); color: var(--text); }
-    #move-panel { width: 16px; margin-left: -6px; margin-right: 6px; cursor: grab; }
-    #move-panel svg { width: 12px; height: 16px; }
+    #move-panel { width: 16px; cursor: grab; }
+    #move-panel svg { stroke-width: 4; transform: translateY(1px); }
     .panel-header:active, #move-panel:active { cursor: grabbing; }
     .brand-icon { flex: none; width: 22px; height: 22px; border-radius: 6px; }
     .brand-icon rect { fill: var(--brand-bg) !important; }

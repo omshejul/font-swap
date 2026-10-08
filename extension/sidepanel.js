@@ -152,31 +152,34 @@ function setState(next) {
 function render() {
   const rules = Array.isArray(state.rules) ? state.rules : [];
   const editing = Boolean(state.source) && sourceKey(state) !== doneKey && sourceKey(state) !== dismissedKey && state.picking !== 'source';
-  const canSearch = Boolean(state.source) && !state.picking && !busy;
+  const loadingFont = Boolean(pending) || (state.status === 'Loading font' && !state.error && !errorText);
+  const loadingFamily = pending || (typeof state.loadingFamily === 'string' ? state.loadingFamily.trim() : '');
+  const blocked = busy || loadingFont;
+  const canSearch = Boolean(state.source) && !state.picking && !blocked;
   const waitingForSource = state.picking === 'source' || (!rules.length && (!state.source || sourceKey(state) === dismissedKey));
 
-  views.main.inert = busy;
-  views.main.setAttribute('aria-busy', String(busy));
+  views.main.inert = blocked;
+  views.main.setAttribute('aria-busy', String(blocked));
   els.undo.hidden = !rules.length;
-  els.undo.disabled = busy;
+  els.undo.disabled = blocked;
   els.rememberRow.hidden = !rules.length && !state.remembered;
   els.rememberRow.title = state.siteOrigin || '';
   if (!busy) els.remember.checked = Boolean(state.remembered);
-  els.remember.disabled = busy;
-  els.mode.disabled = busy;
+  els.remember.disabled = blocked;
+  els.mode.disabled = blocked;
   views.main.dataset.picking = state.picking || '';
   const inline = renderPairs(rules, editing, waitingForSource);
 
-  els.steps.hidden = !editing;
-  els.stepsHome.hidden = !editing || inline;
+  // The loading row replaces the editor until the font applies or fails.
+  els.steps.hidden = !editing || loadingFont;
+  els.stepsHome.hidden = !editing || inline || loadingFont;
   els.another.hidden = waitingForSource;
-  els.search.disabled = !state.source || busy;
+  els.search.disabled = !state.source || blocked;
   els.pickDest.hidden = !canSearch;
   renderResults(canSearch);
 
-  const loadingFont = Boolean(pending) || (state.status === 'Loading font' && !state.error && !errorText);
   els.note.classList.toggle('is-loading', loadingFont);
-  els.note.textContent = pending ? `Loading ${pending}` : loadingFont ? 'Loading font' : noteText;
+  els.note.textContent = loadingFont ? `Loading ${loadingFamily || 'font'}` : noteText;
   const pageError = typeof state.error === 'string' ? state.error.trim() : '';
   const shown = [...new Set([errorText, pageError && describeError(pageError)].filter(Boolean))].join(' ');
   els.error.textContent = shown;
@@ -252,7 +255,7 @@ function renderPairs(rules, editing, waitingForSource) {
 // Actions
 
 async function run(action, payload = {}, family = '') {
-  if (busy || !state) return false;
+  if (busy || !state || (state.status === 'Loading font' && !state.error)) return false;
   busy = true;
   pending = family;
   errorText = noteText = '';

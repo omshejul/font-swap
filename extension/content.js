@@ -8,6 +8,7 @@
   let revision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
   let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
+  let loadingBadge = null, loadingLabel, loadingToken = null, loadingFamily = '';
   let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
   const attentionTiming = {page:200, dialogue:160, delay:40, reduced:200};
   const observers = new Map();
@@ -26,7 +27,7 @@
       let element;
       while ((element=walker.nextNode())) {
         if (++visited > 30000) break;
-        if (element===tooltip || element===pickerBadge || element===attentionOverlay || element.hasAttribute('data-font-swap-panel') || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
+        if (element===tooltip || element===pickerBadge || element===attentionOverlay || element===loadingBadge || element.hasAttribute('data-font-swap-panel') || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
         const shadow = shadowOf(element); if (shadow) walk(shadow);
         const text = textOf(element); if (!text) continue;
         const css = getComputedStyle(element);
@@ -43,7 +44,7 @@
     for (const root of roots) if (!observers.has(root)) {
       const observer = new MutationObserver(changes => {
         if (!active) return;
-        const ui=[tooltip,pickerBadge,attentionOverlay,globalThis.__fontSwapPanelRoot?.host];
+        const ui=[tooltip,pickerBadge,attentionOverlay,loadingBadge,globalThis.__fontSwapPanelRoot?.host];
         changes=changes.filter(change=>!ui.some(node=>node && (change.target===node || node.contains(change.target))) &&
           !([...change.addedNodes,...change.removedNodes].length && [...change.addedNodes,...change.removedNodes].every(node=>ui.includes(node))));
         if (!changes.length) return;
@@ -61,7 +62,7 @@
   function sync() { active=rules.length>0; applied=active; destination=selectedRule()?.destination || null; }
   function currentState() {
     const fonts = new Map(); for (const r of records.filter(r=>!r.protected)) fonts.set(r.family,(fonts.get(r.family)||0)+1);
-    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,scope:rule.scope,count:records.filter(r=>matchesRule(r,rule)).length}))};
+    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,loadingFamily,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,scope:rule.scope,count:records.filter(r=>matchesRule(r,rule)).length}))};
   }
   async function stylesheet(remove='',insert='') {
     if (!remove && !insert) return;
@@ -156,6 +157,24 @@
     badgeLabel.textContent=picking==='destination'?'Pick the replacement font':'Pick the font to replace';
     document.documentElement.append(pickerBadge);
   }
+  function showLoading(family,token) {
+    if (!loadingBadge) {
+      loadingBadge=document.createElement('div');loadingBadge.setAttribute('data-font-swap-loading','');loadingBadge.setAttribute('role','status');loadingBadge.setAttribute('aria-live','polite');
+      const styles={all:'initial',position:'fixed',left:'50%',bottom:'20px',transform:'translateX(-50%)','z-index':'2147483646',display:'block','pointer-events':'none',background:'#2c2c2c',color:'#fff',font:'13px/20px system-ui, sans-serif',padding:'12px','border-radius':'8px',border:'1px solid #ffffff24','box-shadow':'0 4px 16px #0003',width:'max-content','max-width':'calc(100vw - 24px)','box-sizing':'border-box'};
+      for (const [key,value] of Object.entries(styles)) loadingBadge.style.setProperty(key,value,'important');
+      const root=loadingBadge.attachShadow({mode:'closed'}), sheet=new CSSStyleSheet();
+      sheet.replaceSync('@keyframes spin{to{transform:rotate(360deg)}}svg{animation:spin .8s linear infinite}@media(prefers-reduced-motion:reduce){svg{animation:none}}');root.adoptedStyleSheets=[sheet];
+      const spinner=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      for (const [key,value] of Object.entries({width:'16',height:'16',viewBox:'0 0 16 16',fill:'none','aria-hidden':'true'})) spinner.setAttribute(key,value);
+      spinner.style.cssText='display:block;flex:none;color:#8ab4f8';
+      const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      for (const [key,value] of Object.entries({cx:'8',cy:'8',r:'6',stroke:'currentColor','stroke-width':'2','stroke-linecap':'round','stroke-dasharray':'28 10'})) circle.setAttribute(key,value);
+      spinner.append(circle);
+      loadingLabel=document.createElement('span');loadingLabel.style.cssText='min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px';row.append(spinner,loadingLabel);root.append(row);
+    }
+    loadingToken=token;loadingLabel.textContent=`Loading ${family}`;document.documentElement.append(loadingBadge);
+  }
   function stopPicking() {
     picking=null; clearAttention(); unhighlight(); pickerBadge?.remove();
   }
@@ -235,7 +254,7 @@
     }
     showName(element,event);
   },true);
-  const panelEvent = event => event.composedPath().some(node=>node instanceof Element && node.matches('[data-font-swap-panel],[data-font-swap-picker],[data-font-swap-attention]'));
+  const panelEvent = event => event.composedPath().some(node=>node instanceof Element && node.matches('[data-font-swap-panel],[data-font-swap-picker],[data-font-swap-attention],[data-font-swap-loading]'));
   window.addEventListener('pointerdown',event=>{if(picking && !panelEvent(event)) {event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('click',event=>{
     if (!picking) return;
@@ -253,8 +272,9 @@
         warnings=[];
         status='Choose a font'; revision++; await paint(); announce('picked');
       } else {
-        await paint(); status='Loading font'; announce('changed');
-        announce('destination-picked',{destination:visibleRule?.destination || {kind:'page',family:record.family}});
+        const pickedDestination=visibleRule?.destination || {kind:'page',family:record.family};
+        await paint(); loadingFamily=pickedDestination.family;status='Loading font'; announce('changed');
+        announce('destination-picked',{destination:pickedDestination});
       }
     }).catch(error=>{failureMessage=status=error.message; announce('changed');});
   },true);
@@ -287,13 +307,19 @@
     destination=message.destination; scope=nextScope;
     warnings=warnings.filter(w=>!w.includes('closest available face'));
     warnings.push(...(message.font?.warnings || []));
-    sync(); compared=false; status='Applied'; scan(); await paint();
+    sync(); compared=false; status='Applied'; loadingFamily=''; scan(); await paint();
   }
   async function command(message) {
     if (message.action==='ping') return {};
+    if (message.action==='loading') {
+      if (message.family) showLoading(message.family,message.token);
+      else if (message.token===loadingToken) { loadingBadge?.remove();loadingToken=null; }
+      return {};
+    }
     if (message.action==='state') { if (!active) scan(); return currentState(); }
-    if (message.action==='failure') { failureMessage=status=message.error; return currentState(); }
+    if (message.action==='failure') { loadingFamily='';failureMessage=status=message.error; return currentState(); }
     failureMessage='';
+    if (['pick','cancel','source','select','remove','undo'].includes(message.action)) loadingFamily='';
     if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; unhighlight(); showPickerBadge(); showAttention(); status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
     if (message.action==='cancel') { stopPicking(); status='Picker cancelled'; return currentState(); }
     if (message.action==='prepare-restore') {
