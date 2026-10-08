@@ -9,7 +9,7 @@
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
   let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
   let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
-  const attentionTiming = {page:220, gap:60, dialogue:180, delay:40, reduced:500};
+  const attentionTiming = {page:200, dialogue:160, delay:40, reduced:200};
   const observers = new Map();
   const announce = (event,payload={}) => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event,...payload}).catch(()=>{});
   const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };
@@ -182,11 +182,9 @@
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
       attentionOutline.style.opacity='1'; attentionTimer=setTimeout(clearAttention,attentionTiming.reduced); return;
     }
-    const frames=[{opacity:0},{opacity:1,offset:0.3},{opacity:0}], animations=[];
-    for (const delay of [0,attentionTiming.page+attentionTiming.gap]) {
-      animations.push(attentionTint.animate(frames,{delay,duration:attentionTiming.page,easing:'ease-in-out'}));
-      for (const element of [attentionOutline,badgeAttention]) animations.push(element.animate(frames,{delay:delay+attentionTiming.delay,duration:attentionTiming.dialogue,easing:'ease-in-out'}));
-    }
+    const frames=[{opacity:0},{opacity:1,offset:0.3},{opacity:0}];
+    const animations=[attentionTint.animate(frames,{duration:attentionTiming.page,easing:'ease-in-out'}),
+      ...[attentionOutline,badgeAttention].map(element=>element.animate(frames,{delay:attentionTiming.delay,duration:attentionTiming.dialogue,easing:'ease-in-out'}))];
     attentionAnimations=animations;
     Promise.all(animations.map(animation=>animation.finished)).then(()=>{if(attentionAnimations===animations)clearAttention();}).catch(()=>{});
   }
