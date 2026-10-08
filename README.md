@@ -1,4 +1,4 @@
-# Font Swap
+# SwapFont
 
 Private Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly. A native side panel keeps the controls beside the website.
 
@@ -7,7 +7,7 @@ Private Chrome extension. Click text, choose a Google Font or another font on th
 1. Open `chrome://extensions` in desktop Chrome.
 2. Turn on Developer mode.
 3. Click **Load unpacked** and select this repository's `extension` folder.
-4. Open a website and click the Font Swap toolbar icon. Pin the icon for easier access.
+4. Open a website and click the SwapFont toolbar icon. Pin the icon for easier access.
 5. **Pick 1**. Click text whose font you want to change. Hovering shows its font name.
 6. **Pick 2**. Search Google Fonts and choose one, or use **Pick from page**. The font changes immediately.
 7. Use **Another font** to add more pairs. Click a pair to expand its editor in place. Click it again to collapse. Use × to remove one pair, or **Undo all**.

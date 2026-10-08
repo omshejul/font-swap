@@ -20,10 +20,10 @@ async function remember(tabId, frameId) {
   await chrome.storage.session.set({[`frame:${tabId}`]:frameId});
 }
 async function connect(tabId) {
-  if (!Number.isInteger(tabId)) throw new Error('Open a website, then click the Font Swap toolbar button.');
+  if (!Number.isInteger(tabId)) throw new Error('Open a website, then click the SwapFont toolbar button.');
   const tab = await chrome.tabs.get(tabId);
-  if(!tab.url) throw new Error('Click the Font Swap toolbar button on this website to allow access.');
-  if (!/^https?:\/\//.test(tab.url || '')) throw new Error('Font Swap works on regular websites. Browser pages, PDFs and the Chrome Web Store are not supported.');
+  if(!tab.url) throw new Error('Click the SwapFont toolbar button on this website to allow access.');
+  if (!/^https?:\/\//.test(tab.url || '')) throw new Error('SwapFont works on regular websites. Browser pages, PDFs and the Chrome Web Store are not supported.');
   const candidates = await chrome.webNavigation.getAllFrames({tabId}) || [{frameId:0}];
   const attempts = await Promise.allSettled(candidates.map(async ({frameId}) => {
     await chrome.scripting.executeScript({target:{tabId,frameIds:[frameId]},files:['font-utils.js','content.js']});
@@ -31,7 +31,7 @@ async function connect(tabId) {
     return frameId;
   }));
   const allowed = attempts.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
-  if (!allowed.includes(0)) throw new Error('Click the Font Swap toolbar button on this website to allow access. Some protected pages cannot be changed.');
+  if (!allowed.includes(0)) throw new Error('Click the SwapFont toolbar button on this website to allow access. Some protected pages cannot be changed.');
   frames.set(tabId,{allowed,blocked:candidates.length-allowed.length});
   if (!allowed.includes(await selectedFrame(tabId))) await remember(tabId,0);
   return state(tabId);
@@ -65,7 +65,7 @@ async function panel(message) {
   if (action === 'state') return {state:await state(tabId)};
   if (action === 'pick' || action === 'cancel') {
     const results = await Promise.allSettled((action==='pick' && message.mode==='destination' ? [frameId] : frames.get(tabId).allowed).map(id => page(tabId,id,action,{mode:message.mode})));
-    if (results.every(r=>r.status === 'rejected')) throw new Error('The page changed. Reopen Font Swap to reconnect.');
+    if (results.every(r=>r.status === 'rejected')) throw new Error('The page changed. Reopen SwapFont to reconnect.');
   } else if (action === 'preview') {
     const destination = message.destination;
     if (!destination || !['google','page'].includes(destination.kind) || typeof destination.family !== 'string' || destination.family.length > 200) throw new Error('Choose a destination font.');
@@ -75,14 +75,14 @@ async function panel(message) {
     await page(tabId,frameId,'preview',{destination,scope:message.scope,font,revision:prepared.revision});
   } else if (action==='undo') {
     const results=await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'undo')));
-    if(results.some(result=>result.status==='rejected')) throw new Error('A frame changed. Reopen Font Swap to restore the remaining swaps.');
+    if(results.some(result=>result.status==='rejected')) throw new Error('A frame changed. Reopen SwapFont to restore the remaining swaps.');
   } else if (action==='remove' || action==='select') {
     if(!frames.get(tabId).allowed.includes(message.frameId)) throw new Error('This frame is no longer available. Pick text again.');
     await page(tabId,message.frameId,action,{ruleId:message.ruleId});
     if(action==='select') { await remember(tabId,message.frameId); await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'cancel'))); }
   } else if (['source','apply','compare'].includes(action)) {
     await page(tabId,frameId,action,{family:message.family,enabled:message.enabled});
-  } else throw new Error('Unknown Font Swap action.');
+  } else throw new Error('Unknown SwapFont action.');
   const result = await state(tabId);
   await chrome.runtime.sendMessage({type:'STATE_CHANGED',tabId,state:result}).catch(()=>{});
   return {state:result};
@@ -110,7 +110,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
     await broadcast(sender.tab.id); return {};
   })();
   else return false;
-  work.then(value=>respond({ok:true,...value}),error=>respond({ok:false,error:error.message || 'Font Swap could not complete this action.'}));
+  work.then(value=>respond({ok:true,...value}),error=>respond({ok:false,error:error.message || 'SwapFont could not complete this action.'}));
   return true;
 });
 chrome.action.onClicked.addListener(async tab => {
