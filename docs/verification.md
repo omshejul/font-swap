@@ -153,3 +153,9 @@ Five unit tests and all 48 end-to-end checks passed. Mode handoffs were tested u
 Picking instructions and Cancel now appear only on the webpage, for source and replacement picks in both panel modes. The compact isolated card has an accent pipette, a stronger title, aligned secondary help text, and a separate Cancel button with an Esc keycap. The accordion keeps its blinking dashed source row without duplicate instructions.
 
 Five unit tests and all 48 browser checks passed. Checks cover real pointer clicks on page-level Cancel, preserving existing swaps, source and replacement guidance, a 320px viewport, strict CSP and Trusted Types, both panel modes, Escape, instant replacements and remembered mode. Native browser test clicks wait for stable control geometry before dispatching pointer events. Temporary browsers, profiles and servers were closed.
+
+## Saved sites, v0.5.0
+
+Seven unit tests and 56 browser checks passed. New checks save only main-page font names, restore multiple pairs after reload, another path, a new tab and a full browser restart, match dynamic text, isolate a different hostname, update edited pairs, forget a site without clearing its current preview, restore page-picked fonts and clear saved pairs with Undo all. A mocked permission denial leaves the checkbox off and the preview intact. The request contains only the selected host pattern. Fixture loopback permissions are already granted; the native optional permission prompt needs a separate manual check. Chrome's port-wide host permission is separate from the exact origin used for settings.
+
+Restoration targets document IDs. Saving binds the origin to the main document state and verifies the current origin before writing, so navigation cannot save the previous page's pairs against a different site. Embedded-frame and single-element pairs remain temporary. Both layouts use the same native checkbox below Pick another font.

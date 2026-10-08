@@ -1,7 +1,9 @@
 import {getCatalog, loadGoogleFont} from './fonts.js';
+import {siteOrigin, sitePattern, siteKey, savedPairs} from './sites.js';
 
 const frames = new Map();
 const selected = new Map();
+const restoring = new Map();
 chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(() => {});
 async function page(tabId, frameId, action, payload = {}) {
   const result = await chrome.tabs.sendMessage(tabId, {type:'FONT_SWAP',action,...payload}, {frameId});
@@ -21,6 +23,7 @@ async function remember(tabId, frameId) {
 }
 async function connect(tabId) {
   if (!Number.isInteger(tabId)) throw new Error('Open a website, then click the SwapFont toolbar button.');
+  await restoring.get(tabId);
   const tab = await chrome.tabs.get(tabId);
   if(!tab.url) throw new Error('Click the SwapFont toolbar button on this website to allow access.');
   if (!/^https?:\/\//.test(tab.url || '')) throw new Error('SwapFont works on regular websites. Browser pages, PDFs and the Chrome Web Store are not supported.');
@@ -44,6 +47,9 @@ async function state(tabId) {
   result.rules=[...(result.rules || []).map(rule=>({...rule,frameId})),...others.flatMap(item=>item.status==='fulfilled' ? (item.value.state.rules || []).map(rule=>({...rule,frameId:item.value.id})) : [])];
   result.active=result.applied=result.rules.length>0;
   result.tabId = tabId; result.frameId = frameId;
+  result.siteOrigin = siteOrigin(frameId===0 ? result.url : others.find(item=>item.status==='fulfilled' && item.value.id===0)?.value.state.url);
+  if (result.siteOrigin!==siteOrigin((await chrome.tabs.get(tabId)).url)) throw new Error('The page changed. Reopen SwapFont to reconnect.');
+  result.remembered = Boolean((await chrome.storage.local.get(siteKey(result.siteOrigin)))[siteKey(result.siteOrigin)]);
   if(result.picking==='destination') result.warnings.push('Pick a destination in the same document as the origin.');
   if (info?.blocked) result.warnings.push('Some embedded frames are not accessible with this website permission.');
   if (frameId !== 0) result.warnings.push('This swap applies inside the selected frame.');
@@ -58,6 +64,43 @@ async function notify(tabId,result) {
     chrome.tabs.sendMessage(tabId,message,{frameId:0}),
     chrome.runtime.sendMessage(message),
   ]);
+}
+
+async function saveSite(tabId, result) {
+  const origin=result.siteOrigin;
+  const key=siteKey(origin);
+  if (origin!==siteOrigin((await chrome.tabs.get(tabId)).url)) return;
+  if (!origin || !(await chrome.storage.local.get(key))[key]) return;
+  const rules=savedPairs(result.rules);
+  if (rules.length) await chrome.storage.local.set({[key]:{rules}});
+  else await chrome.storage.local.remove(key);
+  result.remembered=rules.length>0;
+}
+
+async function restoreSite({tabId,documentId,url}) {
+  const origin=siteOrigin(url), key=siteKey(origin);
+  if (!origin || !(await chrome.permissions.contains({origins:[sitePattern(origin)]}))) return;
+  const config=(await chrome.storage.local.get(key))[key];
+  if (!config?.rules?.length) return;
+  // Target this document, so a slow font download cannot change a later navigation.
+  const target={tabId,documentIds:[documentId]};
+  const command=async (action,payload={}) => {
+    const result=await chrome.tabs.sendMessage(tabId,{type:'FONT_SWAP',action,...payload},{documentId});
+    if(result?.error) throw new Error(result.error);
+    return result;
+  };
+  await chrome.scripting.executeScript({target,files:['font-utils.js','content.js']});
+  try {
+    const prepared=await command('prepare-restore',{rules:config.rules});
+    const rules=await Promise.all(prepared.rules.map(async rule=>({...rule,font:rule.destination.kind==='google' ? await loadGoogleFont(rule.destination.family,rule.styles) : null})));
+    // Disabling or editing remembering during the download invalidates this restore.
+    if (JSON.stringify((await chrome.storage.local.get(key))[key])!==JSON.stringify(config)) return;
+    if (!(await chrome.permissions.contains({origins:[sitePattern(origin)]}))) return;
+    await command('restore',{rules,revision:prepared.revision});
+    await broadcast(tabId);
+  } catch(error) {
+    await command('failure',{error:`Could not restore saved fonts. ${error.message}`}).catch(()=>{});
+  }
 }
 
 async function openFloating(tabId, startPicking=false) {
@@ -92,8 +135,21 @@ async function switchMode(tabId,mode) {
   await chrome.storage.local.set({panelMode:mode});
   return {};
 }
-async function panel(message) {
+async function panel(message, permission) {
   const {action,tabId} = message;
+  if (action==='remember') {
+    if (message.enabled && !await permission) throw new Error('Chrome needs permission to remember swaps on this site.');
+    const result=await state(tabId), origin=result.siteOrigin;
+    if (!origin || origin!==message.origin) throw new Error('The page changed. Try again.');
+    const key=siteKey(origin), rules=savedPairs(result.rules);
+    if (message.enabled) {
+      if (!rules.length) throw new Error('Pick a font on the main page first. Embedded-frame swaps stay temporary.');
+      await chrome.storage.local.set({[key]:{rules}});
+    } else await chrome.storage.local.remove(key);
+    result.remembered=Boolean(message.enabled);
+    await notify(tabId,result);
+    return {state:result};
+  }
   if (action === 'mode') return switchMode(tabId,message.mode);
   if (action === 'ui') {
     const [html,css,icon] = await Promise.all(['sidepanel.html','sidepanel.css','icons/icon.svg'].map(file=>fetch(chrome.runtime.getURL(file)).then(r=>r.text())));
@@ -130,19 +186,24 @@ async function panel(message) {
     await page(tabId,frameId,action,{family:message.family,enabled:message.enabled});
   } else throw new Error('Unknown SwapFont action.');
   const result = await state(tabId);
+  if (['preview','remove','undo'].includes(action)) await saveSite(tabId,result);
   await notify(tabId,result);
   return {state:result};
 }
 chrome.runtime.onMessage.addListener((message,sender,respond) => {
   if (sender.id !== chrome.runtime.id) return false;
   let work;
-  if (message.type === 'PANEL' && !sender.tab && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message);
+  // Request synchronously in the checkbox click's message, before any await.
+  const trustedPanel=message.type==='PANEL' && (sender.url?.startsWith(chrome.runtime.getURL('')) || (sender.tab && sender.frameId===0));
+  const origin=siteOrigin(sender.tab && !sender.url?.startsWith(chrome.runtime.getURL('')) ? sender.url : message.origin);
+  const permission=trustedPanel && message.action==='remember' && message.enabled && origin ? chrome.permissions.request({origins:[sitePattern(origin)]}) : Promise.resolve(false);
+  if (message.type === 'PANEL' && !sender.tab && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message,permission);
   // Floating controls are trusted content-script code. Always use the sender's tab.
-  else if (message.type === 'PANEL' && sender.tab && sender.frameId === 0 && !sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel({...message,tabId:sender.tab.id});
+  else if (message.type === 'PANEL' && sender.tab && sender.frameId === 0 && !sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel({...message,tabId:sender.tab.id},permission);
   // Extension pages opened as a tab also carry sender.tab.
-  else if (message.type === 'PANEL' && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message);
+  else if (message.type === 'PANEL' && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message,permission);
   else if (message.type === 'FONT_SWAP_CSS' && sender.tab) work = (async () => {
-    const target = {tabId:sender.tab.id,frameIds:[sender.frameId]};
+    const target = {tabId:sender.tab.id,documentIds:[sender.documentId]};
     if (message.remove) await chrome.scripting.removeCSS({target,css:message.remove,origin:'USER'});
     if (message.insert) await chrome.scripting.insertCSS({target,css:message.insert,origin:'USER'});
     return {};
@@ -187,4 +248,16 @@ chrome.action.onClicked.addListener(tab => chrome.storage.local.get('panelMode',
 chrome.tabs.onRemoved.addListener(tabId => { frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); });
 chrome.webNavigation.onCommitted.addListener(({tabId,frameId}) => {
   if (frameId === 0) { frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); }
+});
+chrome.webNavigation.onDOMContentLoaded.addListener(details => {
+  if (details.frameId!==0) return;
+  const work=restoreSite(details).catch(()=>{});
+  restoring.set(details.tabId,work);
+  work.finally(()=>{if(restoring.get(details.tabId)===work) restoring.delete(details.tabId);});
+});
+chrome.permissions.onRemoved.addListener(async () => {
+  const stored=await chrome.storage.local.get(null);
+  for (const key of Object.keys(stored).filter(key=>key.startsWith('site:'))) {
+    if (!(await chrome.permissions.contains({origins:[sitePattern(key.slice(5))]}))) await chrome.storage.local.remove(key);
+  }
 });

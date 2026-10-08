@@ -1,6 +1,6 @@
 # Chrome Web Store draft
 
-SwapFont v0.4.2. Category Art & Design. Language English.
+SwapFont v0.5.0. Category Art & Design. Language English.
 
 - Homepage: https://omshejul.com/app/swapfont
 - Privacy: https://omshejul.com/app/swapfont/privacy
@@ -25,7 +25,7 @@ No account, payment, credentials or license key is required. Use Chrome desktop 
 5. Open the first pair's accordion and change its replacement. Opening and closing a row does not remove the swap.
 6. Try Pick from page for a replacement, select text on the page, and check that it applies immediately. Escape cancels picking and restores the normal cursor.
 7. Use the mode control to switch between floating and side panels. Active swaps remain. The floating panel can be dragged by its header or moved using its focused grip and arrow keys.
-8. Remove one pair, use Undo all, or reload. Original fonts return.
+8. Enable Remember for this site and approve Chrome's site permission. Reload or open another page on the same origin: saved main-page pairs return without opening SwapFont. Edits update them. Uncheck to forget them while retaining the current preview until reload. Undo all clears saved pairs too. Without remembering, reload restores original fonts. Embedded-frame and single-element swaps remain temporary.
 
 Protected Chrome pages and the Chrome Web Store cannot run the picker. Text drawn into images, canvas or PDFs and inaccessible frames is unsupported.
 
@@ -35,4 +35,4 @@ Processing happens locally for website text/styles, picker mouse positions/click
 
 The store draft conservatively declares Website content, User activity, Web history and Location because of that local URL handling and the IP address used by Google Fonts. No browsing-history archive or precise location tracking is implemented. No remote executable code is used.
 
-Optional YouTube video and Search Console verified official URL are left blank because neither exists. The extension remains a draft until the publisher submits it for review.
+Promo video: https://www.youtube.com/watch?v=gjNCp8FUwwg. Version 0.4.2 is pending review with automatic publishing enabled. Version 0.5.0 adds optional saved site pairs; upload it and update the description/permission justifications before submitting that version.

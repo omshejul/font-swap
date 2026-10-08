@@ -59,7 +59,7 @@
   function sync() { active=rules.length>0; applied=active; destination=selectedRule()?.destination || null; }
   function currentState() {
     const fonts = new Map(); for (const r of records.filter(r=>!r.protected)) fonts.set(r.family,(fonts.get(r.family)||0)+1);
-    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,count:records.filter(r=>matchesRule(r,rule)).length}))};
+    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,scope:rule.scope,count:records.filter(r=>matchesRule(r,rule)).length}))};
   }
   async function stylesheet(remove='',insert='') {
     if (!remove && !insert) return;
@@ -227,18 +227,23 @@
     }).catch(error=>{failureMessage=status=error.message; announce('changed');});
   },true);
   document.addEventListener('keydown',event=>{ if (event.key==='Escape' && picking) { stopPicking(); status='Picker cancelled'; announce('cancelled'); } },true);
-  async function preview(message) {
-    if (message.revision!==revision) throw new Error('The origin changed while loading. Choose the destination again.');
+  async function loadFaces(destination,fontData) {
     let loaded=[], nextAlias='';
-    if (message.destination.kind==='google') {
+    if (destination.kind==='google') {
       nextAlias=`FontSwap_${crypto.randomUUID().replaceAll('-','')}`;
       try {
-        for (const face of message.font.faces) {
-          const binary=Uint8Array.from(atob(message.font.binaries[face.id]),c=>c.charCodeAt(0));
+        for (const face of fontData.faces) {
+          const binary=Uint8Array.from(atob(fontData.binaries[face.id]),c=>c.charCodeAt(0));
           const font=new FontFace(nextAlias,binary,face.descriptors); await font.load(); loaded.push(font);
         }
       } catch { throw new Error('Chrome could not load this font. The previous preview is unchanged.'); }
-    } else if (!records.some(r=>U.normalize(r.family)===U.normalize(message.destination.family))) throw new Error('That font is no longer used on this page. Pick it again.');
+    }
+    return {alias:nextAlias,fontFaces:loaded};
+  }
+  async function preview(message) {
+    if (message.revision!==revision) throw new Error('The origin changed while loading. Choose the destination again.');
+    if (message.destination.kind==='page' && !records.some(r=>U.normalize(r.family)===U.normalize(message.destination.family))) throw new Error('That font is no longer used on this page. Pick it again.');
+    const {alias:nextAlias,fontFaces:loaded}=await loadFaces(message.destination,message.font);
     if (message.revision!==revision) throw new Error('The origin changed. Choose the destination again.');
     await clean();
     const nextScope=message.scope==='element'?'element':'all';
@@ -259,7 +264,16 @@
     failureMessage='';
     if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; unhighlight(); showPickerBadge(); status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
     if (message.action==='cancel') { stopPicking(); status='Picker cancelled'; return currentState(); }
-    if (message.action==='source') {
+    if (message.action==='prepare-restore') {
+      scan();
+      return {revision,rules:message.rules.map(rule=>({...rule,styles:[...new Map(records.filter(r=>U.matches(r.stack,rule.source)).map(r=>[`${r.weight}:${r.style}`,{weight:r.weight,style:r.style}])).values()].concat({weight:'400',style:'normal'})}))};
+    } else if (message.action==='restore') {
+      if (message.revision!==revision || rules.length || picking) return currentState();
+      const restored=await Promise.all(message.rules.map(async rule=>({id:crypto.randomUUID(),source:rule.source,destination:rule.destination,scope:'all',element:null,...await loadFaces(rule.destination,rule.font)})));
+      rules=restored;
+      for(const rule of rules) for(const face of rule.fontFaces) document.fonts.add(face);
+      source=rules[0]?.source || ''; scope='all'; sync(); revision++; status='Applied'; scan(); await paint();
+    } else if (message.action==='source') {
       if (typeof message.family!=='string' || !message.family.trim() || message.family.length>200) throw new Error('Choose an origin font.');
       await clean(); compared=false; source=message.family.trim(); sync();
       if (selection && U.normalize(selection.family)!==U.normalize(source)) { selection=null; selectedElement=null; scope='all'; }

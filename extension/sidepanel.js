@@ -13,6 +13,8 @@ const $ = (id) => root.getElementById(id);
 
 const els = {
   undo: $('undo'),
+  remember: $('remember-site'),
+  rememberRow: $('remember-row'),
   mode: $('mode-toggle'),
   connectError: $('connect-error'),
   retry: $('retry'),
@@ -156,6 +158,10 @@ function render() {
   views.main.setAttribute('aria-busy', String(busy));
   els.undo.hidden = !rules.length;
   els.undo.disabled = busy;
+  els.rememberRow.hidden = !rules.length && !state.remembered;
+  els.rememberRow.title = state.siteOrigin || '';
+  if (!busy) els.remember.checked = Boolean(state.remembered);
+  els.remember.disabled = busy;
   els.mode.disabled = busy;
   views.main.dataset.picking = state.picking || '';
   const inline = renderPairs(rules, editing, waitingForSource);
@@ -361,6 +367,8 @@ els.mode.addEventListener('click', async () => {
     else showView('error');
   }
 });
+
+els.remember.addEventListener('change', () => run('remember', { enabled: els.remember.checked, origin: state.siteOrigin }));
 
 els.retry.addEventListener('click', connect);
 els.undo.addEventListener('click', () => run('undo'));
