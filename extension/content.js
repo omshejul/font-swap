@@ -10,7 +10,7 @@
   let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
   let loadingBadge = null, loadingLabel, loadingToken = null, loadingFamily = '';
   let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
-  const attentionTiming = {page:200, dialogue:160, delay:40, reduced:200};
+  const attentionTiming = {page:500, dialogue:400, delay:100, reduced:500};
   const observers = new Map();
   const announce = (event,payload={}) => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event,...payload}).catch(()=>{});
   const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };

@@ -437,8 +437,8 @@ h1 img {
   animation: picker-border 2s linear infinite;
 }
 @keyframes picker-border {
-  0%, 45%, 100% { opacity: 1; }
-  55%, 90% { opacity: 0.1; }
+  0%, 80%, 100% { opacity: 1; }
+  90% { opacity: 0.1; }
 }
 @media (prefers-reduced-motion: reduce) { .pair-awaiting .pair-from::after { animation: none; opacity: 0.7; } }
 .pair-source .pair-edit { gap: 4px; padding: 5px 24px 5px 2px; font-size: 14px; }
