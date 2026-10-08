@@ -44,7 +44,7 @@ No account, API key, backend, analytics or remote code. The extension requests a
 
 Font bytes are cached in extension storage, bounded to 160 cache entries. The catalog is bundled from Google's metadata at build time; the metadata endpoint is undocumented and is not needed during normal use. Font files retain their upstream licenses.
 
-The icon uses the supplied `icon-iOS-Default-1024x1024@2x.png`, resized to Chrome's 16, 32, 48 and 128px sizes.
+The icon uses the supplied `drawing.svg`, kept in `assets/icon.svg` and rendered with Inkscape at 16, 32, 48 and 128px.
 
 ## Develop and verify
 
