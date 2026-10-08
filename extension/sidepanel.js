@@ -16,7 +16,7 @@ const els = {
   stepsHome: $('steps-home'),
   steps: $('steps'),
   pickSource: $('pick-source'),
-  sourceName: $('source-name'),
+  intro: $('intro'),
   search: $('search'),
   results: $('results'),
   pickDest: $('pick-dest'),
@@ -36,6 +36,7 @@ let busy = false;
 let pending = '';
 let errorText = '';
 let noteText = '';
+let dismissedKey = '';
 let doneKey = ''; // source whose swap is finished, so the steps can collapse
 let reconnectTimer = 0;
 let catalog = null;
@@ -80,7 +81,7 @@ async function connect() {
   const epoch = ++tabEpoch;
   state = null;
   busy = false;
-  pending = errorText = noteText = doneKey = '';
+  pending = errorText = noteText = doneKey = dismissedKey = '';
   showView('loading');
   let tab;
   try {
@@ -118,7 +119,7 @@ function setState(next) {
   state = next;
   if (previous && previous.picking && !next.picking) {
     const changed = sourceKey(previous) !== sourceKey(next) || destinationName(previous.destination) !== destinationName(next.destination);
-    if (previous.picking === 'source') doneKey = '';
+    if (previous.picking === 'source') doneKey = dismissedKey = '';
     else if (changed && next.destination) doneKey = sourceKey(next);
     // A pick that ended without a result explains itself through the page status.
     noteText = changed ? '' : next.status || '';
@@ -137,7 +138,7 @@ function setState(next) {
 
 function render() {
   const rules = Array.isArray(state.rules) ? state.rules : [];
-  const editing = !rules.length || (state.source && sourceKey(state) !== doneKey);
+  const editing = Boolean(state.source) && sourceKey(state) !== doneKey && sourceKey(state) !== dismissedKey && state.picking !== 'source';
   const canSearch = Boolean(state.source) && !state.picking && !busy;
 
   views.main.inert = busy;
@@ -149,10 +150,10 @@ function render() {
 
   els.steps.hidden = !editing;
   els.stepsHome.hidden = !editing || inline;
-  els.another.hidden = !rules.length || (editing && !inline);
-  els.sourceName.textContent = state.source || 'Pick font';
-  els.pickSource.setAttribute('aria-label', state.source ? `Font to change: ${state.source}. Pick another` : 'Pick font to change');
-  els.pickSource.setAttribute('aria-pressed', String(state.picking === 'source'));
+  els.intro.hidden = state.picking !== 'source' && (rules.length > 0 || (Boolean(state.source) && sourceKey(state) !== dismissedKey));
+  els.pickSource.hidden = state.picking === 'source';
+  els.another.hidden = !els.intro.hidden;
+  els.picking.querySelector('p').textContent = state.picking === 'destination' ? 'Click the replacement font on the page' : 'Click text on the page';
   els.search.disabled = !state.source || busy;
   els.pickDest.hidden = !canSearch;
   renderResults(canSearch);
@@ -168,19 +169,22 @@ function render() {
 }
 
 function renderPairs(rules, editing) {
-  els.pairs.hidden = !rules.length;
+  const hasDraft = state.source && !rules.some(rule => `${rule.frameId}:${rule.source}` === sourceKey(state)) && sourceKey(state) !== dismissedKey;
+  const rows = hasDraft ? [...rules, {id:'draft', frameId:state.frameId, source:state.source, destination:null}] : rules;
+  els.pairs.hidden = !rows.length;
   const openKey = editing ? sourceKey(state) : '';
-  const inline = rules.some((rule) => `${rule.frameId}:${rule.source}` === openKey);
-  const signature = JSON.stringify([openKey, rules.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination)])]);
+  const inline = rows.some((rule) => `${rule.frameId}:${rule.source}` === openKey);
+  const signature = JSON.stringify([openKey, rows.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination)])]);
   if (signature === pairsSignature) return inline;
   pairsSignature = signature;
   // Keep the single editor alive while rebuilding its accordion rows.
   els.stepsHome.append(els.steps);
-  els.pairs.replaceChildren(...rules.map((rule) => {
+  els.pairs.replaceChildren(...rows.map((rule) => {
     const from = rule.source;
-    const to = destinationName(rule.destination);
+    const draft = rule.id === 'draft';
+    const to = destinationName(rule.destination) || 'Choose font';
     const item = document.createElement('li');
-    item.className = 'pair';
+    item.className = draft ? 'pair pair-pending' : 'pair';
     const header = Object.assign(document.createElement('div'), { className: 'pair-header' });
     const body = Object.assign(document.createElement('div'), { className: 'pair-body', id: `pair-${rule.frameId}-${rule.id}` });
     const open = `${rule.frameId}:${from}` === openKey;
@@ -188,19 +192,19 @@ function renderPairs(rules, editing) {
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'pair-edit';
-    edit.dataset.action = 'select';
+    edit.dataset.action = draft ? 'draft-select' : 'select';
     edit.id = `edit-${rule.frameId}-${rule.id}`;
     edit.setAttribute('aria-label', `Change ${from} to ${to}`);
     edit.setAttribute('aria-expanded', String(open));
     edit.setAttribute('aria-controls', body.id);
     const arrow = Object.assign(document.createElement('span'), { className: 'pair-arrow', textContent: '→' });
-    const chevron = Object.assign(document.createElement('span'), { className: 'pair-chevron', textContent: '›' });
+    const chevron = Object.assign(document.createElement('span'), { className: 'pair-chevron', textContent: '⌄' });
     chevron.setAttribute('aria-hidden', 'true');
-    edit.append(Object.assign(document.createElement('span'), { textContent: from }), arrow, Object.assign(document.createElement('span'), { textContent: to }), chevron);
+    edit.append(Object.assign(document.createElement('span'), {className:'pair-from', textContent:from}), arrow, Object.assign(document.createElement('span'), {className:'pair-to', textContent:to}), chevron);
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'pair-remove';
-    remove.dataset.action = 'remove';
+    remove.dataset.action = draft ? 'draft-remove' : 'remove';
     remove.textContent = '×';
     remove.setAttribute('aria-label', `Remove ${from} to ${to}`);
     for (const button of [edit, remove]) {
@@ -228,7 +232,10 @@ async function run(action, payload = {}, family = '') {
   busy = false;
   pending = '';
   if (!response.ok) errorText = describeError(response.error);
-  if (response.ok && response.state) setState(response.state);
+  if (response.ok && response.state) {
+    if (action === 'undo') dismissedKey = doneKey = sourceKey(response.state);
+    setState(response.state);
+  }
   else render();
   return Boolean(response.ok);
 }
@@ -241,7 +248,8 @@ async function choose(family) {
   doneKey = key;
   els.search.value = '';
   render();
-  els.another.focus();
+  const rule = state.rules.find(rule => `${rule.frameId}:${rule.source}` === key);
+  $(`edit-${rule?.frameId}-${rule?.id}`)?.focus();
 }
 
 // Search
@@ -323,7 +331,15 @@ els.pickDest.addEventListener('click', () => run('pick', { mode: 'destination' }
 
 els.pairs.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');
-  if (!button) return;
+  if (!button || busy) return;
+  if (button.dataset.action.startsWith('draft-')) {
+    if (state.picking) await run('cancel');
+    if (button.dataset.action === 'draft-remove') { dismissedKey = sourceKey(state); doneKey = dismissedKey; }
+    else doneKey = button.getAttribute('aria-expanded') === 'true' ? sourceKey(state) : '';
+    render();
+    (button.dataset.action === 'draft-remove' ? (els.another.hidden ? els.pickSource : els.another) : els.steps.hidden ? $(button.id) : els.search)?.focus();
+    return;
+  }
   const payload = { ruleId: button.dataset.ruleId, frameId: Number(button.dataset.frameId) };
   const rule = state.rules.find((entry) => String(entry.id) === payload.ruleId && entry.frameId === payload.frameId);
   if (busy || !rule) return;
@@ -344,6 +360,7 @@ els.pairs.addEventListener('click', async (event) => {
       els.search.focus();
     }
   } else if (await run('remove', payload)) {
+    if (sourceKey(state) === `${rule.frameId}:${rule.source}`) { dismissedKey = doneKey = sourceKey(state); render(); }
     (els.another.hidden ? els.pickSource : els.another).focus();
   }
 });
