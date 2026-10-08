@@ -8,7 +8,8 @@
   let revision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
   let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
-  let attentionOverlay = null, attentionTint, attentionOutline, attentionTimer, attentionAnimations = [];
+  let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
+  const attentionTiming = {page:220, gap:60, dialogue:180, delay:40, reduced:500};
   const observers = new Map();
   const announce = (event,payload={}) => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event,...payload}).catch(()=>{});
   const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };
@@ -148,8 +149,9 @@
       const escape=document.createElement('kbd');escape.textContent='Esc';escape.setAttribute('aria-hidden','true');escape.style.cssText='font:11px/16px system-ui,sans-serif;color:#b3b3b3;border:1px solid #ffffff33;border-radius:4px;padding:0 3px';cancel.append(escape);
       const hint=document.createElement('div');hint.textContent='Hover text to see its font, then click it.';hint.style.cssText='color:#b3b3b3;margin-top:4px';
       const text=document.createElement('div');text.style.cssText='flex:1;min-width:0;max-width:240px';text.append(badgeLabel,hint);
-      const row=document.createElement('div');row.style.cssText='display:flex;align-items:flex-start;gap:8px';row.append(icon,text,cancel);
-      root.append(row);
+      badgeAttention=document.createElement('div');badgeAttention.style.cssText='position:absolute;inset:0;border-radius:inherit;background:rgba(66,133,244,.3);opacity:0;pointer-events:none';
+      const row=document.createElement('div');row.style.cssText='position:relative;display:flex;align-items:flex-start;gap:8px';row.append(icon,text,cancel);
+      root.append(badgeAttention,row);
     }
     badgeLabel.textContent=picking==='destination'?'Pick the replacement font':'Pick the font to replace';
     document.documentElement.append(pickerBadge);
@@ -167,23 +169,24 @@
     if (!pickerBadge?.isConnected) return;
     if (!attentionOverlay) {
       attentionOverlay=document.createElement('div'); attentionOverlay.setAttribute('data-font-swap-attention',''); attentionOverlay.setAttribute('aria-hidden','true');
-      const styles={all:'initial',position:'fixed',inset:'0',display:'block','pointer-events':'none','z-index':'2147483645'};
+      const styles={all:'initial',position:'fixed',inset:'0',display:'block','pointer-events':'none','z-index':'2147483644'};
       for (const [key,value] of Object.entries(styles)) attentionOverlay.style.setProperty(key,value,'important');
       const root=attentionOverlay.attachShadow({mode:'closed'});
-      attentionTint=document.createElement('div'); attentionTint.style.cssText='position:absolute;inset:0;background:#4285f4;opacity:0;pointer-events:none';
-      attentionOutline=document.createElement('div'); attentionOutline.style.cssText='position:absolute;box-sizing:border-box;border:2px solid #8ab4f8;border-radius:11px;box-shadow:0 0 0 3px #8ab4f81f;opacity:0;pointer-events:none';
+      attentionTint=document.createElement('div'); attentionTint.style.cssText='position:absolute;inset:0;background:linear-gradient(to right,rgba(66,133,244,.58),rgba(66,133,244,.22) 8%,transparent 22%),linear-gradient(to left,rgba(66,133,244,.58),rgba(66,133,244,.22) 8%,transparent 22%),linear-gradient(to bottom,rgba(66,133,244,.58),rgba(66,133,244,.22) 10%,transparent 28%),linear-gradient(to top,rgba(66,133,244,.58),rgba(66,133,244,.22) 10%,transparent 28%);opacity:0;pointer-events:none';
+      attentionOutline=document.createElement('div'); attentionOutline.style.cssText='position:absolute;box-sizing:border-box;border:2px solid #8ab4f8;border-radius:10px;box-shadow:0 0 0 3px #8ab4f81f;opacity:0;pointer-events:none';
       root.append(attentionTint,attentionOutline);
     }
     const bounds=pickerBadge.getBoundingClientRect();
-    Object.assign(attentionOutline.style,{left:`${bounds.left-3}px`,top:`${bounds.top-3}px`,width:`${bounds.width+6}px`,height:`${bounds.height+6}px`,opacity:'0'});
+    Object.assign(attentionOutline.style,{left:`${bounds.left-2}px`,top:`${bounds.top-2}px`,width:`${bounds.width+4}px`,height:`${bounds.height+4}px`,opacity:'0'});
     document.documentElement.append(attentionOverlay);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      attentionOutline.style.opacity='0.65'; attentionTimer=setTimeout(clearAttention,600); return;
+      attentionOutline.style.opacity='1'; attentionTimer=setTimeout(clearAttention,attentionTiming.reduced); return;
     }
-    const animations=[
-      attentionTint.animate([{opacity:0},{opacity:0.045,offset:0.3},{opacity:0}],{duration:600,easing:'ease-in-out'}),
-      attentionOutline.animate([{opacity:0},{opacity:0.8,offset:0.3},{opacity:0}],{delay:100,duration:500,easing:'ease-in-out'})
-    ];
+    const frames=[{opacity:0},{opacity:1,offset:0.3},{opacity:0}], animations=[];
+    for (const delay of [0,attentionTiming.page+attentionTiming.gap]) {
+      animations.push(attentionTint.animate(frames,{delay,duration:attentionTiming.page,easing:'ease-in-out'}));
+      for (const element of [attentionOutline,badgeAttention]) animations.push(element.animate(frames,{delay:delay+attentionTiming.delay,duration:attentionTiming.dialogue,easing:'ease-in-out'}));
+    }
     attentionAnimations=animations;
     Promise.all(animations.map(animation=>animation.finished)).then(()=>{if(attentionAnimations===animations)clearAttention();}).catch(()=>{});
   }
