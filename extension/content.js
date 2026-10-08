@@ -8,6 +8,7 @@
   let revision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
   let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
+  let attentionOverlay = null, attentionTint, attentionOutline, attentionTimer, attentionAnimations = [];
   const observers = new Map();
   const announce = (event,payload={}) => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event,...payload}).catch(()=>{});
   const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };
@@ -24,7 +25,7 @@
       let element;
       while ((element=walker.nextNode())) {
         if (++visited > 30000) break;
-        if (element===tooltip || element===pickerBadge || element.hasAttribute('data-font-swap-panel') || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
+        if (element===tooltip || element===pickerBadge || element===attentionOverlay || element.hasAttribute('data-font-swap-panel') || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
         const shadow = shadowOf(element); if (shadow) walk(shadow);
         const text = textOf(element); if (!text) continue;
         const css = getComputedStyle(element);
@@ -41,7 +42,7 @@
     for (const root of roots) if (!observers.has(root)) {
       const observer = new MutationObserver(changes => {
         if (!active) return;
-        const ui=[tooltip,pickerBadge,globalThis.__fontSwapPanelRoot?.host];
+        const ui=[tooltip,pickerBadge,attentionOverlay,globalThis.__fontSwapPanelRoot?.host];
         changes=changes.filter(change=>!ui.some(node=>node && (change.target===node || node.contains(change.target))) &&
           !([...change.addedNodes,...change.removedNodes].length && [...change.addedNodes,...change.removedNodes].every(node=>ui.includes(node))));
         if (!changes.length) return;
@@ -125,7 +126,7 @@
   }
   function showPickerBadge() {
     // Source picking spans frames. Show its instruction once on the main page.
-    if (window!==window.top && picking!=='destination') return;
+    if (window!==window.top && picking!=='destination') { pickerBadge?.remove(); return; }
     if (!pickerBadge) {
       pickerBadge=document.createElement('div'); pickerBadge.setAttribute('data-font-swap-picker',''); pickerBadge.setAttribute('role','region');pickerBadge.setAttribute('aria-label','Font picker');
       const styles={all:'initial',position:'fixed',left:'50%',bottom:'20px',transform:'translateX(-50%)','z-index':'2147483646',display:'block','pointer-events':'auto',background:'#2c2c2c',color:'#fff',font:'12px/16px system-ui, sans-serif',padding:'12px','border-radius':'8px',border:'1px solid #ffffff24','box-shadow':'0 4px 16px #0003',width:'max-content','max-width':'calc(100vw - 24px)','box-sizing':'border-box'};
@@ -154,7 +155,37 @@
     document.documentElement.append(pickerBadge);
   }
   function stopPicking() {
-    picking=null; unhighlight(); pickerBadge?.remove();
+    picking=null; clearAttention(); unhighlight(); pickerBadge?.remove();
+  }
+  function clearAttention() {
+    clearTimeout(attentionTimer); attentionTimer=null;
+    for (const animation of attentionAnimations) animation.cancel();
+    attentionAnimations=[]; attentionOverlay?.remove();
+  }
+  function showAttention() {
+    clearAttention();
+    if (!pickerBadge?.isConnected) return;
+    if (!attentionOverlay) {
+      attentionOverlay=document.createElement('div'); attentionOverlay.setAttribute('data-font-swap-attention',''); attentionOverlay.setAttribute('aria-hidden','true');
+      const styles={all:'initial',position:'fixed',inset:'0',display:'block','pointer-events':'none','z-index':'2147483645'};
+      for (const [key,value] of Object.entries(styles)) attentionOverlay.style.setProperty(key,value,'important');
+      const root=attentionOverlay.attachShadow({mode:'closed'});
+      attentionTint=document.createElement('div'); attentionTint.style.cssText='position:absolute;inset:0;background:#4285f4;opacity:0;pointer-events:none';
+      attentionOutline=document.createElement('div'); attentionOutline.style.cssText='position:absolute;box-sizing:border-box;border:2px solid #8ab4f8;border-radius:11px;box-shadow:0 0 0 3px #8ab4f81f;opacity:0;pointer-events:none';
+      root.append(attentionTint,attentionOutline);
+    }
+    const bounds=pickerBadge.getBoundingClientRect();
+    Object.assign(attentionOutline.style,{left:`${bounds.left-3}px`,top:`${bounds.top-3}px`,width:`${bounds.width+6}px`,height:`${bounds.height+6}px`,opacity:'0'});
+    document.documentElement.append(attentionOverlay);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      attentionOutline.style.opacity='0.65'; attentionTimer=setTimeout(clearAttention,600); return;
+    }
+    const animations=[
+      attentionTint.animate([{opacity:0},{opacity:0.045,offset:0.3},{opacity:0}],{duration:600,easing:'ease-in-out'}),
+      attentionOutline.animate([{opacity:0},{opacity:0.8,offset:0.3},{opacity:0}],{delay:100,duration:500,easing:'ease-in-out'})
+    ];
+    attentionAnimations=animations;
+    Promise.all(animations.map(animation=>animation.finished)).then(()=>{if(attentionAnimations===animations)clearAttention();}).catch(()=>{});
   }
   function unhighlight() {
     if (tooltip) { tooltip.remove(); tooltip=null; }
@@ -203,7 +234,7 @@
     }
     showName(element,event);
   },true);
-  const panelEvent = event => event.composedPath().some(node=>node instanceof Element && node.matches('[data-font-swap-panel],[data-font-swap-picker]'));
+  const panelEvent = event => event.composedPath().some(node=>node instanceof Element && node.matches('[data-font-swap-panel],[data-font-swap-picker],[data-font-swap-attention]'));
   window.addEventListener('pointerdown',event=>{if(picking && !panelEvent(event)) {event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('click',event=>{
     if (!picking) return;
@@ -262,7 +293,7 @@
     if (message.action==='state') { if (!active) scan(); return currentState(); }
     if (message.action==='failure') { failureMessage=status=message.error; return currentState(); }
     failureMessage='';
-    if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; unhighlight(); showPickerBadge(); status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
+    if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; unhighlight(); showPickerBadge(); showAttention(); status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
     if (message.action==='cancel') { stopPicking(); status='Picker cancelled'; return currentState(); }
     if (message.action==='prepare-restore') {
       scan();

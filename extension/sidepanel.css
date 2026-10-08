@@ -411,7 +411,8 @@ h1 img {
   55%, 90% { opacity: 0.1; }
 }
 @media (prefers-reduced-motion: reduce) { .pair-awaiting .pair-from::after { animation: none; opacity: 0.7; } }
-.pair-source .pair-edit { gap: 4px; padding: 0 24px 0 2px; font-size: 14px; }
+.pair-source .pair-edit { gap: 4px; padding: 5px 24px 5px 2px; font-size: 14px; }
+.pair-source .pair-destination { padding-left: 10px; }
 .pair-source .pair-to { color: var(--muted); font-weight: 400; }
 #messages-home:has(.note:empty):has(.error[hidden]) { display: none; }
 

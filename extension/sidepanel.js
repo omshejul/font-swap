@@ -451,6 +451,11 @@ if (!floating) chrome.tabs.onActivated.addListener(scheduleConnect);
 if (!floating) chrome.tabs.onUpdated.addListener((id, change) => {
   if (id === tabId && change.status === 'complete') scheduleConnect();
 });
+if (!floating) {
+  const cancelPicking = () => { if (tabId !== null) send('cancel'); };
+  window.addEventListener('pagehide', cancelPicking);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelPicking(); });
+}
 (floating ? root : document).addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && state?.picking) {
     event.preventDefault();
