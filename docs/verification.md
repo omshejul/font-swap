@@ -1,8 +1,8 @@
 # Verification
 
-Verified 2026-10-08T03:21:14.368Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T03:48:21.173Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
-Manifest and syntax checks passed. Five unit tests passed. All 34 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
+Manifest and syntax checks passed. Five unit tests passed. All 35 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
 The fixture browser used loopback-only permissions in a temporary manifest copy to exercise permitted frames. The native-panel browser used the exact production manifest and a real toolbar action. Test browsers, fixture servers and temporary profiles were closed.
 
@@ -34,6 +34,7 @@ The fixture browser used loopback-only permissions in a temporary manifest copy 
 - production manifest toolbar gesture opens native panel and grants activeTab
 - saved pair opens and closes inline without removing the pair or changing the applied font
 - native panel searches, applies instantly, edits by keyboard and undoes on public iana.org
+- pending row opens, closes and discards without affecting an applied swap
 - native panel adds simultaneous pairs while production permissions protect cross-origin frames
 - switching accordion rows keeps both swaps applied and expands one editor at a time
 - expanded two-pair accordion fits 320px and renders light and dark themes
@@ -87,3 +88,15 @@ The second pick uses a search icon, Search Google Fonts label and placeholder, a
 ![Search field in dark theme](search-dark.png)
 
 ![Search field in light theme](search-light.png)
+
+## Compact picker in v0.2.2
+
+The panel follows the supplied three-state reference. A pending source row opens one replacement picker containing search, Pick from page and results. Applied swaps become compact rows with muted source names, bold destinations, chevrons and separate remove buttons. Numbered cards and the repeated source box are gone. The updated drawing.svg supplies all icon sizes, and the extension is named SwapFont.
+
+Manifest and syntax checks, five unit tests and all 35 browser checks passed. The new pending-row check confirms closing, reopening and discarding a choice preserves an existing swap. Visually checked the native Chrome panel at 320px in light and dark themes.
+
+![Compact picker in dark theme](compact-search-dark.png)
+
+![Compact picker in light theme](compact-search-light.png)
+
+![Expanded compact accordion](compact-panel-dark.png)
