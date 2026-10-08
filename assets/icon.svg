@@ -234,7 +234,8 @@
        height="512"
        x="-1.71875e-06"
        y="1.5812209e-06"
-       ry="0" /><text
+       rx="128"
+       ry="128" /><text
        xml:space="preserve"
        style="font-weight:bold;font-size:460.152px;line-height:0.9;font-family:Inter;-inkscape-font-specification:'Inter Bold';letter-spacing:6.03952px;writing-mode:lr-tb;direction:ltr;fill:#ffffff;fill-opacity:1;stroke:#333333;stroke-width:5.29167;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke fill markers"
        x="136.35599"
