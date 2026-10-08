@@ -355,8 +355,13 @@ h1 img {
   flex: none;
   margin-left: auto;
   color: var(--muted);
-  font-size: 18px;
-  line-height: 1;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .pair-edit[aria-expanded="true"] .pair-chevron {
@@ -409,8 +414,16 @@ h1 img {
 }
 
 .warnings summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
   cursor: pointer;
 }
+
+.warnings summary::-webkit-details-marker { display: none; }
+.notes-chevron { flex: none; }
+.warnings[open] .notes-chevron { transform: rotate(90deg); }
 
 .warnings ul {
   display: flex;

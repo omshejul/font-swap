@@ -1,6 +1,6 @@
 # Verification
 
-Verified 2026-10-08T03:48:21.173Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T03:53:27.999Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
 Manifest and syntax checks passed. Five unit tests passed. All 35 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
@@ -91,7 +91,7 @@ The second pick uses a search icon, Search Google Fonts label and placeholder, a
 
 ## Compact picker in v0.2.2
 
-The panel follows the supplied three-state reference. A pending source row opens one replacement picker containing search, Pick from page and results. Applied swaps become compact rows with muted source names, bold destinations, chevrons and separate remove buttons. Numbered cards and the repeated source box are gone. The updated drawing.svg supplies all icon sizes, and the extension is named SwapFont.
+The panel follows the supplied three-state reference. A pending source row opens one replacement picker containing search, Pick from page and results. Applied swaps become compact rows with muted source names, bold destinations, chevrons and separate remove buttons. Numbered cards and the repeated source box are gone. Row and Notes chevrons are SVG icons. Notes retains native mouse and keyboard disclosure behavior. The updated drawing.svg supplies all icon sizes, and the extension is named SwapFont.
 
 Manifest and syntax checks, five unit tests and all 35 browser checks passed. The new pending-row check confirms closing, reopening and discarding a choice preserves an existing swap. Visually checked the native Chrome panel at 320px in light and dark themes.
 

@@ -198,8 +198,13 @@ function renderPairs(rules, editing) {
     edit.setAttribute('aria-expanded', String(open));
     edit.setAttribute('aria-controls', body.id);
     const arrow = Object.assign(document.createElement('span'), { className: 'pair-arrow', textContent: '→' });
-    const chevron = Object.assign(document.createElement('span'), { className: 'pair-chevron', textContent: '⌄' });
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'pair-chevron');
+    chevron.setAttribute('viewBox', '0 0 24 24');
     chevron.setAttribute('aria-hidden', 'true');
+    const chevronPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    chevronPath.setAttribute('d', 'm6 9 6 6 6-6');
+    chevron.append(chevronPath);
     edit.append(Object.assign(document.createElement('span'), {className:'pair-from', textContent:from}), arrow, Object.assign(document.createElement('span'), {className:'pair-to', textContent:to}), chevron);
     const remove = document.createElement('button');
     remove.type = 'button';
