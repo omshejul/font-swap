@@ -1,6 +1,6 @@
 # Verification
 
-Verified 2026-10-07T22:37:42.285Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T03:11:15.252Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
 Manifest and syntax checks passed. Five unit tests passed. All 32 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
@@ -65,3 +65,11 @@ The Codex in-app browser's control policy rejected chrome://extensions because o
 ![Dark panel](panel-dark.png)
 
 These results cover the listed cases on the tested browsers. They do not establish exact glyph detection or universal browser compatibility. See README boundaries.
+
+## Search field in v0.2.1
+
+The second pick uses a search icon, Search Google Fonts label and placeholder, a filled background, and native search input. Clicking the row focuses the field. The actual native Chrome panel was visually checked at 320px in light and dark themes. All 32 browser checks and five unit tests passed again. The Dia manual checks above refer to v0.2.0; concurrent user input prevented repeating them for this visual patch.
+
+![Search field in dark theme](search-dark.png)
+
+![Search field in light theme](search-light.png)

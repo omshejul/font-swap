@@ -248,6 +248,16 @@ button.step[aria-pressed="true"] {
   opacity: 0.5;
 }
 
+.step-search {
+  background: var(--surface);
+  cursor: text;
+}
+
+.search-icon {
+  flex: none;
+  color: var(--muted);
+}
+
 .step-number {
   display: grid;
   flex: none;
@@ -278,12 +288,8 @@ button.step[aria-pressed="true"] {
 }
 
 .step-input::placeholder {
-  color: var(--text);
-  opacity: 1;
-}
-
-.step-input:focus::placeholder {
   color: var(--muted);
+  opacity: 1;
 }
 
 /* Results */
