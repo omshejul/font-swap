@@ -155,6 +155,9 @@ h1 img {
 }
 
 .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   align-self: flex-start;
   padding: 2px 0;
   border: 0;
@@ -166,6 +169,10 @@ h1 img {
 
 .link-button:hover {
   text-decoration: underline;
+}
+
+.link-button svg {
+  flex: none;
 }
 
 /* Connection states */

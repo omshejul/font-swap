@@ -1,6 +1,6 @@
 # Verification
 
-Verified 2026-10-08T03:19:07.801Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T03:21:14.368Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
 Manifest and syntax checks passed. Five unit tests passed. All 34 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
@@ -70,7 +70,7 @@ These results cover the listed cases on the tested browsers. They do not establi
 
 ## Search and accordion in v0.2.1
 
-The second pick uses a search icon, Search Google Fonts label and placeholder, a filled background, and native search input. Clicking the row focuses the field. The actual native Chrome panel was visually checked at 320px in light and dark themes. All 34 browser checks and five unit tests passed again. Saved pairs expand the two-pick editor inside their row, with one row open at a time. Opening, closing and switching rows preserves the applied fonts. A down arrow connects the two picks. The × button removes a pair independently. The Dia manual checks above refer to v0.2.0; concurrent user input prevented repeating them for this visual patch.
+The second pick uses a search icon, Search Google Fonts label and placeholder, a filled background, and native search input. Clicking the row focuses the field. The actual native Chrome panel was visually checked at 320px in light and dark themes. All 34 browser checks and five unit tests passed again. Saved pairs expand the two-pick editor inside their row, with one row open at a time. Opening, closing and switching rows preserves the applied fonts. A down arrow connects the two picks. The × button removes a pair independently. Pick from page has a decorative eyedropper icon to its left. The Dia manual checks above refer to v0.2.0; concurrent user input prevented repeating them for this visual patch.
 
 ![Search field in dark theme](search-dark.png)
 
