@@ -127,21 +127,30 @@
     // Source picking spans frames. Show its instruction once on the main page.
     if (window!==window.top && picking!=='destination') return;
     if (!pickerBadge) {
-      pickerBadge=document.createElement('div'); pickerBadge.setAttribute('data-font-swap-picker',''); pickerBadge.setAttribute('role','status');
-      const styles={all:'initial',position:'fixed',left:'50%',bottom:'20px',transform:'translateX(-50%)','z-index':'2147483646',display:'flex','align-items':'center',gap:'8px','pointer-events':'none',background:'#202124',color:'#fff',font:'14px/1.4 system-ui, sans-serif',padding:'10px 14px','border-radius':'999px',border:'1px solid #ffffff30','box-shadow':'0 2px 12px #0003','max-width':'calc(100vw - 24px)','white-space':'nowrap'};
+      pickerBadge=document.createElement('div'); pickerBadge.setAttribute('data-font-swap-picker',''); pickerBadge.setAttribute('role','region');pickerBadge.setAttribute('aria-label','Font picker');
+      const styles={all:'initial',position:'fixed',left:'50%',bottom:'20px',transform:'translateX(-50%)','z-index':'2147483646',display:'block','pointer-events':'auto',background:'#2c2c2c',color:'#fff',font:'12px/16px system-ui, sans-serif',padding:'12px','border-radius':'8px',border:'1px solid #ffffff24','box-shadow':'0 4px 16px #0003',width:'max-content','max-width':'calc(100vw - 24px)','box-sizing':'border-box'};
       for (const [key,value] of Object.entries(styles)) pickerBadge.style.setProperty(key,value,'important');
       const root=pickerBadge.attachShadow({mode:'closed'});
       const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
       for (const [key,value] of Object.entries({width:'16',height:'16',viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'2','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true'})) icon.setAttribute(key,value);
-      icon.style.flexShrink='0';
+      icon.style.cssText='flex:none;color:#8ab4f8;margin-top:2px';
       for (const d of ['m12 9-8.414 8.414A2 2 0 0 0 3 18.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 3.828 21h1.344a2 2 0 0 0 1.414-.586L15 12','m18 9 .4.4a1 1 0 1 1-3 3l-3.8-3.8a1 1 0 1 1 3-3l.4.4 3.4-3.4a1 1 0 1 1 3 3z','m2 22 .414-.414']) {
         const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',d);icon.append(path);
       }
       badgeLabel=document.createElement('span');
-      const escape=document.createElement('span');escape.textContent='Esc to cancel';escape.style.cssText='font-size:12px;color:#b8bdc7';
-      root.append(icon,badgeLabel,escape);
+      badgeLabel.setAttribute('role','status');badgeLabel.style.cssText='display:block;font-size:13px;line-height:16px;font-weight:600';
+      const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.setAttribute('aria-label','Cancel font picking');
+      cancel.style.cssText='all:unset;display:inline-flex;align-items:center;align-self:center;gap:8px;box-sizing:border-box;height:28px;cursor:pointer;padding:0 8px;border-radius:6px;background:#ffffff14;color:#fff;font:inherit;flex:none;margin-left:4px';
+      cancel.addEventListener('pointerenter',()=>{cancel.style.background='#ffffff24';});cancel.addEventListener('pointerleave',()=>{cancel.style.background='#ffffff14';});
+      cancel.addEventListener('focus',()=>{cancel.style.outline='2px solid #8ab4f8';cancel.style.outlineOffset='2px';});cancel.addEventListener('blur',()=>{cancel.style.outline='';});
+      cancel.addEventListener('click',event=>{event.stopPropagation();stopPicking();status='Picker cancelled';announce('cancelled');});
+      const escape=document.createElement('kbd');escape.textContent='Esc';escape.setAttribute('aria-hidden','true');escape.style.cssText='font:11px/16px system-ui,sans-serif;color:#b3b3b3;border:1px solid #ffffff33;border-radius:4px;padding:0 3px';cancel.append(escape);
+      const hint=document.createElement('div');hint.textContent='Hover text to see its font, then click it.';hint.style.cssText='color:#b3b3b3;margin-top:4px';
+      const text=document.createElement('div');text.style.cssText='flex:1;min-width:0;max-width:240px';text.append(badgeLabel,hint);
+      const row=document.createElement('div');row.style.cssText='display:flex;align-items:flex-start;gap:8px';row.append(icon,text,cancel);
+      root.append(row);
     }
-    badgeLabel.textContent=picking==='destination'?'Pick replacement font':'Pick a font';
+    badgeLabel.textContent=picking==='destination'?'Pick the replacement font':'Pick the font to replace';
     document.documentElement.append(pickerBadge);
   }
   function stopPicking() {
@@ -194,7 +203,7 @@
     }
     showName(element,event);
   },true);
-  const panelEvent = event => event.composedPath().some(node=>node instanceof Element && node.hasAttribute('data-font-swap-panel'));
+  const panelEvent = event => event.composedPath().some(node=>node instanceof Element && node.matches('[data-font-swap-panel],[data-font-swap-picker]'));
   window.addEventListener('pointerdown',event=>{if(picking && !panelEvent(event)) {event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('click',event=>{
     if (!picking) return;

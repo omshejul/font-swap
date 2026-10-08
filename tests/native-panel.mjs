@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 
+export async function pagePicker(worker,page) {
+ return worker.evaluate(async url=>{
+  const tab=(await chrome.tabs.query({})).find(tab=>tab.url===url);
+  return (await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>{
+   const badge=document.querySelector('[data-font-swap-picker]');if(!badge)return null;
+   const root=chrome.dom.openOrClosedShadowRoot(badge),button=root.querySelector('button'),r=button.getBoundingClientRect(),b=badge.getBoundingClientRect();
+   return {text:root.textContent,cancel:{x:r.x+r.width/2,y:r.y+r.height/2},left:b.left,right:b.right,bottom:b.bottom,overflow:badge.scrollWidth>badge.clientWidth};
+  }}))[0].result;
+ },page.url());
+}
+export async function cancelPagePick(worker,page) {
+ const {cancel}=await pagePicker(worker,page);await page.mouse.click(cancel.x,cancel.y);
+}
+
 export async function attachPanel(browserCDP,targetId) {
  const {sessionId}=await browserCDP.send('Target.attachToTarget',{targetId,flatten:false});
  let nextId=0;const waiting=new Map();
@@ -17,7 +31,7 @@ export async function attachPanel(browserCDP,targetId) {
   if(result.exceptionDetails)throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);return result.result.value;
  };
  const click=async selector=>{
-  const point=await evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e || e.disabled || e.hidden)throw new Error('Missing or disabled control');e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+  const point=await evaluate(`(async()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e || e.disabled || e.hidden)throw new Error('Missing or disabled control');e.scrollIntoView({block:'nearest'});let previous='',stable=0;for(let frame=0;frame<60;frame++){await new Promise(requestAnimationFrame);const r=e.getBoundingClientRect(),key=[r.x,r.y,r.width,r.height].join(',');stable=key===previous?stable+1:0;previous=key;if(stable===3)return {x:r.x+r.width/2,y:r.y+r.height/2};}throw new Error('Control layout did not settle');})()`);
   await command('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});await command('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
  };
  const wait=async expression=>{
@@ -58,7 +72,9 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
   } else await panel.click(`#results .result[data-family="${family}"]`);
   await panel.wait(`document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('${family}')`);
  };
- await panel.wait("!document.getElementById('picking').hidden");
+ await panel.wait("!!document.getElementById('view-main').dataset.picking");
+ assert.equal(await panel.evaluate("document.body.textContent.includes('Click text on the page') || document.body.textContent.includes('Hover text to see its font') || !!document.getElementById('cancel')"),false);
+ assert.match((await pagePicker(worker,page)).text,/Pick the font to replace.*Hover text to see its font, then click it.*CancelEsc/);
  const visibleURL=await worker.evaluate(async()=> (await chrome.tabs.query({active:true,currentWindow:true}))[0].url);assert.equal(visibleURL,page.url());
  passed('production manifest toolbar gesture opens native panel and grants activeTab');
  await page.locator('h1').click();await panel.wait("document.querySelector('.pair-pending') && !document.getElementById('search').disabled");
@@ -98,16 +114,16 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await panel.click('.pair-source .pair-edit');await panel.wait("!!document.querySelector('.pair-awaiting')");
  assert.equal(await page.locator('[data-font-swap-picker]').count(),1);
  await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
- await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)') && document.getElementById('picking').hidden");
+ await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)') && !document.getElementById('view-main').dataset.picking");
  assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
  passed('empty panel reuses the Pick from page row; clicking starts picking and Escape leaves it idle without an intro screen');
- await page.goto(fixtureURL);await trigger();await panel.wait("!document.getElementById('picking').hidden");
+ await page.goto(fixtureURL);await trigger();await panel.wait("!!document.getElementById('view-main').dataset.picking");
  await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .pair-from')?.textContent==='Arial'");
  assert.equal(await panel.evaluate("!!document.getElementById('warnings') || !!document.getElementById('warning-list')"),false);
- await choose('Inter');await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting .pair-body #picking')");
+ await choose('Inter');await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting')");
  assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.pair-awaiting .pair-from')).borderStyle"),'dashed');
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-from').textContent"),'Pick from page');
- await panel.click('.pair-awaiting .pair-from');assert.equal(await panel.evaluate("document.getElementById('picking').hidden"),false);
+ await panel.click('.pair-awaiting .pair-from');assert.equal(await panel.evaluate("!document.getElementById('view-main').dataset.picking"),false);
  await panel.command('Emulation.setDeviceMetricsOverride',{width:240,height:800,deviceScaleFactor:1,mobile:false});
  assert.equal(await panel.evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true);
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-to').scrollWidth<=document.querySelector('.pair-awaiting .pair-to').clientWidth"),true);
@@ -117,10 +133,10 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await panel.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
  await panel.command('Emulation.setDeviceMetricsOverride',{width:320,height:800,deviceScaleFactor:1,mobile:false});
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),2);
- await panel.click('#cancel');await panel.wait("!document.querySelector('.pair-awaiting')");
+ await cancelPagePick(worker,page);await panel.wait("!document.querySelector('.pair-awaiting')");
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);
  assert.equal(await panel.evaluate("document.querySelector('.pair-edit').getAttribute('aria-expanded')"),'false');
- passed('adding a font opens a blinking dashed source placeholder that wraps at 240px with picking controls inside its accordion; Cancel preserves swaps');
+ passed('adding a font opens a blinking dashed source placeholder that wraps at 240px with instructions and Cancel on the page; Cancel preserves swaps');
  await panel.click('#another');await page.locator('#generic').click();await panel.wait("!!document.querySelector('.pair-pending')");
  const beforeDiscard=await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily);
  await panel.click('.pair-pending .pair-remove');await panel.wait("!document.querySelector('.pair-pending')");
@@ -151,6 +167,6 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await panel.click('.pair-source .pair-edit');await page.locator('#body').click();await panel.wait("!document.getElementById('pick-dest').hidden");await panel.click('#pick-dest');await page.locator('#generic').click();
  await panel.wait("document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('monospace')");assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/^monospace,/);await panel.click('#undo');
  passed('native panel page-picked destination applies immediately and collapses to pair');
- await page.reload();await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");await panel.click('.pair-source .pair-edit');await page.keyboard.press('Escape');await panel.wait("document.getElementById('picking').hidden");passed('native panel reconnects after navigation and Escape cancels picker');
+ await page.reload();await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");await panel.click('.pair-source .pair-edit');await page.keyboard.press('Escape');await panel.wait("!document.getElementById('view-main').dataset.picking");passed('native panel reconnects after navigation and Escape cancels picker');
  await page.close();await browserCDP.detach();
 }
