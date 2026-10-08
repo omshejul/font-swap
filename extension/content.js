@@ -7,7 +7,7 @@
   let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
   let revision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
-  let tooltip = null, failureMessage = '';
+  let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
   const observers = new Map();
   const announce = (event,payload={}) => chrome.runtime.sendMessage({type:'FONT_SWAP_EVENT',event,...payload}).catch(()=>{});
   const serialize = operation => { const result = pending.then(operation); pending = result.catch(()=>{}); return result; };
@@ -24,7 +24,7 @@
       let element;
       while ((element=walker.nextNode())) {
         if (++visited > 30000) break;
-        if (element===tooltip || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
+        if (element===tooltip || element===pickerBadge || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
         const shadow = shadowOf(element); if (shadow) walk(shadow);
         const text = textOf(element); if (!text) continue;
         const css = getComputedStyle(element);
@@ -41,8 +41,8 @@
     for (const root of roots) if (!observers.has(root)) {
       const observer = new MutationObserver(changes => {
         if (!active) return;
-        changes=changes.filter(change=>change.target!==tooltip && !tooltip?.contains(change.target) &&
-          !([...change.addedNodes,...change.removedNodes].length && [...change.addedNodes,...change.removedNodes].every(node=>node===tooltip)));
+        changes=changes.filter(change=>![tooltip,pickerBadge].some(ui=>ui && (change.target===ui || ui.contains(change.target))) &&
+          !([...change.addedNodes,...change.removedNodes].length && [...change.addedNodes,...change.removedNodes].every(node=>node===tooltip || node===pickerBadge)));
         if (!changes.length) return;
         if (mutating) { dirty=true; return; }
         if (changes.some(change=>change.type!=='attributes' || ['style','class','hidden'].includes(change.attributeName))) schedule();
@@ -122,12 +122,35 @@
     if(timer) return;
     timer=setTimeout(()=>{timer=null;serialize(async()=>{ await refresh(); announce('changed'); }).catch(()=>{});},150);
   }
+  function showPickerBadge() {
+    // Source picking spans frames. Show its instruction once on the main page.
+    if (window!==window.top && picking!=='destination') return;
+    if (!pickerBadge) {
+      pickerBadge=document.createElement('div'); pickerBadge.setAttribute('data-font-swap-picker',''); pickerBadge.setAttribute('role','status');
+      const styles={all:'initial',position:'fixed',left:'50%',bottom:'20px',transform:'translateX(-50%)','z-index':'2147483646',display:'flex','align-items':'center',gap:'8px','pointer-events':'none',background:'#202124',color:'#fff',font:'14px/1.4 system-ui, sans-serif',padding:'10px 14px','border-radius':'999px',border:'1px solid #ffffff30','box-shadow':'0 2px 12px #0003','max-width':'calc(100vw - 24px)','white-space':'nowrap'};
+      for (const [key,value] of Object.entries(styles)) pickerBadge.style.setProperty(key,value,'important');
+      const root=pickerBadge.attachShadow({mode:'closed'});
+      const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      for (const [key,value] of Object.entries({width:'16',height:'16',viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.75','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true'})) icon.setAttribute(key,value);
+      icon.style.flexShrink='0';
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','m15 6 3-3a2.12 2.12 0 0 1 3 3l-3 3M13 5l6 6M16 8 5 19H2v-3L13 5');icon.append(path);
+      badgeLabel=document.createElement('span');
+      const escape=document.createElement('span');escape.textContent='Esc to cancel';escape.style.cssText='font-size:12px;color:#b8bdc7';
+      root.append(icon,badgeLabel,escape);
+    }
+    badgeLabel.textContent=picking==='destination'?'Pick replacement font':'Pick a font';
+    document.documentElement.append(pickerBadge);
+  }
+  function stopPicking() {
+    picking=null; unhighlight(); pickerBadge?.remove();
+  }
   function unhighlight() {
     if (tooltip) { tooltip.remove(); tooltip=null; }
     if (!highlighted) return;
-    if (highlighted.style.getPropertyValue('outline')===highlightStyle.applied && highlighted.style.getPropertyPriority('outline')==='important') {
-      if (highlightStyle.value) highlighted.style.setProperty('outline',highlightStyle.value,highlightStyle.priority);
-      else highlighted.style.removeProperty('outline');
+    for (const [property,before] of Object.entries(highlightStyle)) {
+      if (highlighted.style.getPropertyValue(property)!==before.applied || highlighted.style.getPropertyPriority(property)!=='important') continue;
+      if (before.value) highlighted.style.setProperty(property,before.value,before.priority);
+      else highlighted.style.removeProperty(property);
     }
     highlighted=null;
   }
@@ -159,9 +182,12 @@
     if (!picking) return;
     const element=locate(event); if (element===highlighted) { if(element) showName(element,event); return; }
     unhighlight(); if (!element) return;
-    highlighted=element; highlightStyle={value:element.style.getPropertyValue('outline'),priority:element.style.getPropertyPriority('outline')};
-    element.style.setProperty('outline','2px solid rgb(45, 105, 231)','important');
-    highlightStyle.applied=element.style.getPropertyValue('outline');
+    highlighted=element; highlightStyle={};
+    for (const [property,value] of Object.entries({outline:'1px solid rgba(45, 105, 231, 0.45)','background-color':'rgba(45, 105, 231, 0.08)',cursor:'pointer'})) {
+      const before={value:element.style.getPropertyValue(property),priority:element.style.getPropertyPriority(property)};
+      element.style.setProperty(property,value,'important');
+      before.applied=element.style.getPropertyValue(property); highlightStyle[property]=before;
+    }
     showName(element,event);
   },true);
   window.addEventListener('pointerdown',event=>{if(picking) {event.preventDefault();event.stopImmediatePropagation();}},true);
@@ -169,7 +195,7 @@
     if (!picking) return;
     const element=locate(event); if (!element) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    const mode=picking, visibleRule=!compared && ruleFor(records.find(r=>r.element===element)); picking=null; unhighlight();
+    const mode=picking, visibleRule=!compared && ruleFor(records.find(r=>r.element===element)); stopPicking();
     serialize(async()=>{
       await clean(); scan();
       const record=records.find(r=>r.element===element);
@@ -186,7 +212,7 @@
       }
     }).catch(error=>{failureMessage=status=error.message; announce('changed');});
   },true);
-  document.addEventListener('keydown',event=>{ if (event.key==='Escape' && picking) { picking=null; unhighlight(); status='Picker cancelled'; announce('changed'); } },true);
+  document.addEventListener('keydown',event=>{ if (event.key==='Escape' && picking) { stopPicking(); status='Picker cancelled'; announce('cancelled'); } },true);
   async function preview(message) {
     if (message.revision!==revision) throw new Error('The origin changed while loading. Choose the destination again.');
     let loaded=[], nextAlias='';
@@ -217,8 +243,8 @@
     if (message.action==='state') { if (!active) scan(); return currentState(); }
     if (message.action==='failure') { failureMessage=status=message.error; return currentState(); }
     failureMessage='';
-    if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
-    if (message.action==='cancel') { picking=null; unhighlight(); return currentState(); }
+    if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; unhighlight(); showPickerBadge(); status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
+    if (message.action==='cancel') { stopPicking(); status='Picker cancelled'; return currentState(); }
     if (message.action==='source') {
       if (typeof message.family!=='string' || !message.family.trim() || message.family.length>200) throw new Error('Choose an origin font.');
       await clean(); compared=false; source=message.family.trim(); sync();
@@ -230,7 +256,7 @@
     } else if (message.action==='preview') await preview(message);
     else if (message.action==='select') {
       const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
-      source=rule.source; scope=rule.scope; selectedElement=rule.element; destination=rule.destination; picking=null; unhighlight(); revision++; status='Choose a font';
+      source=rule.source; scope=rule.scope; selectedElement=rule.element; destination=rule.destination; stopPicking(); revision++; status='Choose a font';
     } else if (message.action==='remove') {
       const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
       await clean(); rules=rules.filter(item=>item!==rule); for(const face of rule.fontFaces) document.fonts.delete(face); sync(); revision++; scan(); await paint(); status=active?'Applied':'Original fonts restored';
@@ -238,7 +264,7 @@
     else if (message.action==='apply') { if (!active) throw new Error('Choose a destination first.'); if (compared) { compared=false; await refresh(); } applied=true; status='Applied'; }
     else if (message.action==='undo') {
       await clean(); compared=false; revision++;
-      for (const rule of rules) for (const face of rule.fontFaces) document.fonts.delete(face); rules=[]; sync(); picking=null; unhighlight(); scan(); status='Original fonts restored';
+      for (const rule of rules) for (const face of rule.fontFaces) document.fonts.delete(face); rules=[]; sync(); stopPicking(); scan(); status='Original fonts restored';
     } else if (message.action==='compare') { if (!active) throw new Error('Choose a destination first.'); compared=!!message.enabled; await refresh(); status=compared?'Showing original':applied?'Applied':'Previewing'; }
     else throw new Error('Unknown page action.');
     return currentState();

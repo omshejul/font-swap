@@ -11,6 +11,8 @@ const els = {
   connectError: $('connect-error'),
   retry: $('retry'),
   picking: $('picking'),
+  pickingHome: $('picking-home'),
+  messagesHome: $('messages-home'),
   cancel: $('cancel'),
   pairs: $('pairs'),
   stepsHome: $('steps-home'),
@@ -44,6 +46,7 @@ let catalogLoading = null;
 let matches = [];
 let activeIndex = -1;
 let pairsSignature = '';
+let resultsSignature = '';
 
 // Messaging
 
@@ -119,10 +122,10 @@ function setState(next) {
   state = next;
   if (previous && previous.picking && !next.picking) {
     const changed = sourceKey(previous) !== sourceKey(next) || destinationName(previous.destination) !== destinationName(next.destination);
-    if (previous.picking === 'source') doneKey = dismissedKey = '';
+    if (previous.picking === 'source' && next.status === 'Choose a font') doneKey = dismissedKey = '';
     else if (changed && next.destination) doneKey = sourceKey(next);
     // A pick that ended without a result explains itself through the page status.
-    noteText = changed ? '' : next.status || '';
+    noteText = changed || ['Picker cancelled','Choose a font'].includes(next.status) ? '' : next.status || '';
   }
   if (next.status === 'Applied' && next.destination && (previous?.picking === 'destination' || previous?.status === 'Loading font')) {
     doneKey = sourceKey(next);
@@ -150,9 +153,9 @@ function render() {
 
   els.steps.hidden = !editing;
   els.stepsHome.hidden = !editing || inline;
-  els.intro.hidden = state.picking !== 'source' && (rules.length > 0 || (Boolean(state.source) && sourceKey(state) !== dismissedKey));
+  els.intro.hidden = Boolean(state.picking) || rules.length > 0 || (Boolean(state.source) && sourceKey(state) !== dismissedKey);
   els.pickSource.hidden = state.picking === 'source';
-  els.another.hidden = !els.intro.hidden;
+  els.another.hidden = !els.intro.hidden || state.picking === 'source';
   els.picking.querySelector('p').textContent = state.picking === 'destination' ? 'Click the replacement font on the page' : 'Click text on the page';
   els.search.disabled = !state.source || busy;
   els.pickDest.hidden = !canSearch;
@@ -169,42 +172,55 @@ function render() {
 }
 
 function renderPairs(rules, editing) {
-  const hasDraft = state.source && !rules.some(rule => `${rule.frameId}:${rule.source}` === sourceKey(state)) && sourceKey(state) !== dismissedKey;
-  const rows = hasDraft ? [...rules, {id:'draft', frameId:state.frameId, source:state.source, destination:null}] : rules;
+  const waitingForSource = state.picking === 'source';
+  const hasDraft = !waitingForSource && state.source && !rules.some(rule => `${rule.frameId}:${rule.source}` === sourceKey(state)) && sourceKey(state) !== dismissedKey;
+  const rows = waitingForSource ? [...rules, {id:'picking',frameId:state.frameId,source:'Pick from page',destination:null}] : hasDraft ? [...rules, {id:'draft', frameId:state.frameId, source:state.source, destination:null}] : rules;
   els.pairs.hidden = !rows.length;
   const openKey = editing ? sourceKey(state) : '';
   const inline = rows.some((rule) => `${rule.frameId}:${rule.source}` === openKey);
-  const signature = JSON.stringify([openKey, rows.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination)])]);
+  const signature = JSON.stringify([openKey, state.picking, rows.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination)])]);
   if (signature === pairsSignature) return inline;
   pairsSignature = signature;
   // Keep the single editor alive while rebuilding its accordion rows.
   els.stepsHome.append(els.steps);
+  els.pickingHome.append(els.picking);
+  els.messagesHome.append(els.note,els.error);
   els.pairs.replaceChildren(...rows.map((rule) => {
     const from = rule.source;
-    const draft = rule.id === 'draft';
+    const waiting = rule.id === 'picking';
+    const draft = waiting || rule.id === 'draft';
     const to = destinationName(rule.destination) || 'Choose font';
     const item = document.createElement('li');
-    item.className = draft ? 'pair pair-pending' : 'pair';
+    item.className = waiting ? 'pair pair-pending pair-awaiting' : draft ? 'pair pair-pending' : 'pair';
     const header = Object.assign(document.createElement('div'), { className: 'pair-header' });
     const body = Object.assign(document.createElement('div'), { className: 'pair-body', id: `pair-${rule.frameId}-${rule.id}` });
-    const open = `${rule.frameId}:${from}` === openKey;
+    const open = waiting || `${rule.frameId}:${from}` === openKey;
     body.hidden = !open;
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'pair-edit';
-    edit.dataset.action = draft ? 'draft-select' : 'select';
+    edit.dataset.action = waiting ? 'cancel-pick' : draft ? 'draft-select' : 'select';
     edit.id = `edit-${rule.frameId}-${rule.id}`;
     edit.setAttribute('aria-label', `Change ${from} to ${to}`);
     edit.setAttribute('aria-expanded', String(open));
     edit.setAttribute('aria-controls', body.id);
     const arrow = Object.assign(document.createElement('span'), { className: 'pair-arrow', textContent: '→' });
-    const chevron = Object.assign(document.createElement('span'), { className: 'pair-chevron', textContent: '⌄' });
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'pair-chevron');
+    chevron.setAttribute('viewBox', '0 0 24 24');
     chevron.setAttribute('aria-hidden', 'true');
-    edit.append(Object.assign(document.createElement('span'), {className:'pair-from', textContent:from}), arrow, Object.assign(document.createElement('span'), {className:'pair-to', textContent:to}), chevron);
+    const chevronPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    chevronPath.setAttribute('d', 'm6 9 6 6 6-6');
+    chevron.append(chevronPath);
+    const fromLabel=Object.assign(document.createElement('span'), {className:'pair-from',textContent:from});
+    if (waiting) fromLabel.prepend(els.pickDest.querySelector('svg').cloneNode(true));
+    const replacement=Object.assign(document.createElement('span'), {className:'pair-destination'});
+    replacement.append(arrow,Object.assign(document.createElement('span'), {className:'pair-to',textContent:to}));
+    edit.append(fromLabel,replacement,chevron);
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'pair-remove';
-    remove.dataset.action = draft ? 'draft-remove' : 'remove';
+    remove.dataset.action = waiting ? 'cancel-pick' : draft ? 'draft-remove' : 'remove';
     remove.textContent = '×';
     remove.setAttribute('aria-label', `Remove ${from} to ${to}`);
     for (const button of [edit, remove]) {
@@ -212,7 +228,13 @@ function renderPairs(rules, editing) {
       button.dataset.frameId = rule.frameId;
     }
     header.append(edit, remove);
-    if (open) body.append(els.steps);
+    if (open) {
+      if (state.picking) body.append(els.picking);
+      if (waiting) {
+        body.append(Object.assign(document.createElement('p'), {className:'note',textContent:'Hover text to see its font. Click to pick it.'}));
+      } else body.append(els.steps);
+      body.append(els.note,els.error);
+    }
     item.append(header, body);
     return item;
   }));
@@ -292,29 +314,34 @@ function renderResults(show) {
   if (activeIndex >= matches.length) activeIndex = matches.length - 1;
   els.results.hidden = !show || !catalog;
   els.search.setAttribute('aria-expanded', String(matches.length > 0));
-  els.results.replaceChildren(...matches.map((font, index) => {
-    const option = document.createElement('div');
-    option.id = `result-${index}`;
-    option.className = 'result';
-    option.setAttribute('role', 'option');
-    option.setAttribute('aria-selected', String(index === activeIndex));
-    option.dataset.index = index;
-    option.dataset.family = font.family;
-    option.textContent = font.family;
-    return option;
-  }));
-  if (show && catalog && !matches.length) {
-    els.results.append(Object.assign(document.createElement('p'), { className: 'results-empty', textContent: 'No fonts found' }));
+  const signature = JSON.stringify([show, Boolean(catalog), matches.map((font) => font.family)]);
+  // Page refreshes can arrive between pointer down and up. Keep the click target alive.
+  if (signature !== resultsSignature) {
+    resultsSignature = signature;
+    els.results.replaceChildren(...matches.map((font, index) => {
+      const option = document.createElement('div');
+      option.id = `result-${index}`;
+      option.className = 'result';
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(index === activeIndex));
+      option.dataset.index = index;
+      option.dataset.family = font.family;
+      option.textContent = font.family;
+      return option;
+    }));
+    if (show && catalog && !matches.length) {
+      els.results.append(Object.assign(document.createElement('p'), { className: 'results-empty', textContent: 'No fonts found' }));
+    }
   }
-  setActive(activeIndex);
+  setActive(activeIndex, false);
 }
 
-function setActive(index) {
+function setActive(index, scroll = true) {
   activeIndex = matches.length ? Math.max(-1, Math.min(index, matches.length - 1)) : -1;
   for (const option of els.results.querySelectorAll('.result')) {
     const selected = Number(option.dataset.index) === activeIndex;
     option.setAttribute('aria-selected', String(selected));
-    if (selected) option.scrollIntoView({ block: 'nearest' });
+    if (selected && scroll) option.scrollIntoView({ block: 'nearest' });
   }
   if (activeIndex < 0) els.search.removeAttribute('aria-activedescendant');
   else els.search.setAttribute('aria-activedescendant', `result-${activeIndex}`);
@@ -332,6 +359,10 @@ els.pickDest.addEventListener('click', () => run('pick', { mode: 'destination' }
 els.pairs.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button || busy) return;
+  if (button.dataset.action === 'cancel-pick') {
+    if (!event.target.closest('.pair-from')) await run('cancel');
+    return;
+  }
   if (button.dataset.action.startsWith('draft-')) {
     if (state.picking) await run('cancel');
     if (button.dataset.action === 'draft-remove') { dismissedKey = sourceKey(state); doneKey = dismissedKey; }
