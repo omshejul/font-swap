@@ -1,6 +1,6 @@
 # Verification
 
-Verified 2026-10-08T04:49:48.047Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T05:03:23.544Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
 Manifest and syntax checks passed. Five unit tests passed. All 39 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
@@ -122,3 +122,9 @@ Browser checks cover custom important cursors, restoration on picking and Escape
 Removed the separate intro screen. An empty panel uses the same Pick from page accordion as adding a font. Clicking it starts picking. Escape and Cancel stop picking and leave that row static and clickable. Undo all and removing the last swap return to that row. A delayed reconnect waits for active panel actions, and connection responses cannot replace newer state. Five unit tests and all 39 browser checks passed.
 
 ![Simplified empty picker](empty-picker-dark.png)
+
+## Picker feedback v0.2.5
+
+Replaced the hand-drawn eyedropper with the Lucide pipette in the source row, replacement picker and on-page badge. The dashed border now blinks every 0.8 seconds, holding full brightness and 10% opacity between short fades. Text and icon stay steady. Reduced motion and idle rows remain static.
+
+Verified the bright and dim phases in light and dark themes, 16px icon rendering, and reduced motion in the native production-manifest panel. All 39 end-to-end checks and five unit tests passed.
