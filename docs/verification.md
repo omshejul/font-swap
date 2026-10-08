@@ -1,8 +1,8 @@
 # Verification
 
-Verified 2026-10-08T04:14:02.806Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T04:49:48.047Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
-Manifest and syntax checks passed. Five unit tests passed. All 38 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
+Manifest and syntax checks passed. Five unit tests passed. All 39 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
 The fixture browser used loopback-only permissions in a temporary manifest copy to exercise permitted frames. The native-panel browser used the exact production manifest and a real toolbar action. Test browsers, fixture servers and temporary profiles were closed.
 
@@ -36,6 +36,7 @@ The fixture browser used loopback-only permissions in a temporary manifest copy 
 - a page state update between native pointer press and release preserves the result and applies the font
 - saved pair opens and closes inline without removing the pair or changing the applied font
 - native panel searches, applies instantly, edits by keyboard and undoes on public iana.org
+- empty panel reuses the Pick from page row; clicking starts picking and Escape leaves it idle without an intro screen
 - adding a font opens a blinking dashed source placeholder that wraps at 240px with picking controls inside its accordion; Cancel preserves swaps
 - pending row opens, closes and discards without affecting an applied swap
 - native panel adds simultaneous pairs while production permissions protect cross-origin frames
@@ -115,3 +116,9 @@ Browser checks cover custom important cursors, restoration on picking and Escape
 ![On-page picking feedback](page-picking.png)
 
 ![Narrow waiting accordion with stacked labels](waiting-240-dark.png)
+
+## Simplified empty panel in v0.2.3
+
+Removed the separate intro screen. An empty panel uses the same Pick from page accordion as adding a font. Clicking it starts picking. Escape and Cancel stop picking and leave that row static and clickable. Undo all and removing the last swap return to that row. A delayed reconnect waits for active panel actions, and connection responses cannot replace newer state. Five unit tests and all 39 browser checks passed.
+
+![Simplified empty picker](empty-picker-dark.png)
