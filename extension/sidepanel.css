@@ -186,7 +186,8 @@ h1 img {
   overflow-wrap: anywhere;
 }
 
-.spinner {
+.spinner,
+.note.is-loading::before {
   flex: none;
   width: 14px;
   height: 14px;
@@ -203,7 +204,8 @@ h1 img {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
+  .spinner,
+  .note.is-loading::before {
     animation: none;
   }
 }
@@ -433,6 +435,16 @@ h1 img {
 
 .note:empty {
   display: none;
+}
+
+.note.is-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note.is-loading::before {
+  content: '';
 }
 
 .error {

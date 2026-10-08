@@ -160,7 +160,9 @@ function render() {
   els.pickDest.hidden = !canSearch;
   renderResults(canSearch);
 
-  els.note.textContent = pending ? `Loading ${pending}` : noteText;
+  const loadingFont = Boolean(pending) || (state.status === 'Loading font' && !state.error && !errorText);
+  els.note.classList.toggle('is-loading', loadingFont);
+  els.note.textContent = pending ? `Loading ${pending}` : loadingFont ? 'Loading font' : noteText;
   const pageError = typeof state.error === 'string' ? state.error.trim() : '';
   const shown = [...new Set([errorText, pageError && describeError(pageError)].filter(Boolean))].join(' ');
   els.error.textContent = shown;
