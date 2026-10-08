@@ -17,6 +17,8 @@
   const root=host.attachShadow({mode:'closed'});
   const sheet=new CSSStyleSheet();
   sheet.replaceSync(ui.css.replaceAll(':root',':host').replace(/html,\s*body/g,':host').replace(/\bbody\s*\{/g,':host {')+`
+    .panel { height: auto; }
+    .panel-content { flex: none; overflow: visible; }
     .panel-header { cursor: grab; touch-action: none; }
     .panel-header h1 { margin-right: auto; }
     .floating-control { display: grid; place-items: center; flex: none; width: 24px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
@@ -31,6 +33,12 @@
   const icon=document.importNode(parser.parseFromString(ui.icon,'image/svg+xml').documentElement,true);
   icon.setAttribute('class','brand-icon'); icon.setAttribute('aria-hidden','true');
   root.querySelector('h1 img').replaceWith(icon);
+  // Decode the bundled logo without a page image request, including on strict-CSP sites.
+  const bitmap=await createImageBitmap(new Blob([new Uint8Array(ui.logo)],{type:'image/png'}));
+  const logo=document.createElement('canvas'); logo.className='google-fonts-logo'; logo.setAttribute('aria-hidden','true');
+  logo.width=bitmap.width; logo.height=bitmap.height;
+  logo.getContext('2d').drawImage(bitmap,0,0); bitmap.close();
+  root.querySelector('.google-fonts-logo').replaceWith(logo);
   const header=root.querySelector('.panel-header');
   function control(id,label,paths) {
     const button=document.createElement('button');
