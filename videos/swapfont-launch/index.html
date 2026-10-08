@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="vendor/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Inter";
+        src: url("fonts/Inter-400.woff2") format("woff2");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Inter";
+        src: url("fonts/Inter-700.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #202124;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: Inter, sans-serif;
+        color: #e8eaed;
+      }
+      #bg {
+        position: absolute;
+        inset: 0;
+        background: #202124;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .icon {
+        display: block;
+        border-radius: 22%;
+      }
+
+      /* Intro */
+      #intro-brand {
+        position: absolute;
+        left: 192px;
+        top: 150px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-size: 36px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      #intro-title {
+        position: absolute;
+        left: 192px;
+        top: 262px;
+        font-size: 84px;
+        line-height: 1.08;
+        font-weight: 700;
+        letter-spacing: -0.035em;
+      }
+      #intro-title .accent {
+        color: #8ab4f8;
+      }
+      /* Crop of the real page headline: 740x190 at (40,140), shown at 1.4x */
+      .crop {
+        position: absolute;
+        overflow: hidden;
+        background: #f5f4ef;
+      }
+      .crop img {
+        position: absolute;
+        display: block;
+      }
+      #specimen {
+        left: 192px;
+        top: 572px;
+        width: 1036px;
+        height: 266px;
+        border-radius: 14px;
+      }
+      #specimen img {
+        left: -56px;
+        top: -196px;
+        width: 1792px;
+        height: 1120px;
+      }
+      #specimen-label {
+        position: absolute;
+        left: 1284px;
+        top: 682px;
+        font-size: 34px;
+        line-height: 46px;
+        white-space: nowrap;
+      }
+      #specimen-label .from {
+        color: #bdc1c6;
+      }
+      #specimen-label .to {
+        color: #8ab4f8;
+        font-weight: 700;
+      }
+
+      /* Feature scenes */
+      #lockup-inner {
+        position: absolute;
+        left: 192px;
+        top: 124px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      #shot-frame {
+        position: absolute;
+        left: 736px;
+        top: 240px;
+        width: 992px;
+        height: 620px;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #f5f4ef;
+        border: 1px solid rgba(232, 234, 237, 0.16);
+      }
+      #stage {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1280px;
+        height: 800px;
+        transform-origin: 0 0;
+      }
+      #stage img {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1280px;
+        height: 800px;
+        display: block;
+      }
+      .note {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 22px;
+        line-height: 28px;
+        font-weight: 700;
+        color: #0b57d0;
+        white-space: nowrap;
+      }
+      .note i {
+        display: block;
+        width: 26px;
+        height: 2px;
+        background: #0b57d0;
+      }
+      #note-head {
+        left: 622px;
+        top: 182px;
+      }
+      #note-body {
+        left: 566px;
+        top: 378px;
+      }
+      #cursor {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 26px;
+        height: 32px;
+      }
+      #cursor svg {
+        position: absolute;
+        left: -2px;
+        top: -2px;
+        display: block;
+      }
+      #ring {
+        position: absolute;
+        left: -24px;
+        top: -24px;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 3px solid #0b57d0;
+      }
+      .copy {
+        position: absolute;
+        left: 192px;
+        top: 240px;
+        width: 488px;
+        height: 620px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .copy h2 {
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        white-space: nowrap;
+      }
+      .copy h2.big {
+        font-size: 72px;
+        line-height: 1.14;
+      }
+      .copy h2.mid {
+        font-size: 52px;
+        line-height: 1.16;
+      }
+      .copy h2 span {
+        display: block;
+      }
+      .copy p {
+        margin-top: 28px;
+        font-size: 26px;
+        line-height: 1.4;
+        color: #bdc1c6;
+      }
+
+      /* Outro */
+      #outro-text {
+        position: absolute;
+        left: 192px;
+        top: 340px;
+      }
+      #outro-name {
+        margin-top: 36px;
+        font-size: 96px;
+        line-height: 1.05;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+      }
+      #outro-tag {
+        margin-top: 22px;
+        font-size: 40px;
+        line-height: 1.3;
+        color: #e8eaed;
+        white-space: nowrap;
+      }
+      #outro-url {
+        margin-top: 34px;
+        font-size: 30px;
+        line-height: 1.3;
+        font-weight: 700;
+        color: #8ab4f8;
+      }
+      /* Crop of the real "Aa" tile: 760x182 at (64,550) */
+      #tile {
+        left: 968px;
+        top: 449px;
+        width: 760px;
+        height: 182px;
+        border-radius: 6px;
+        background: #dce3d6;
+      }
+      #tile img {
+        left: -64px;
+        top: -550px;
+        width: 1280px;
+        height: 800px;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-dxb8" id="root" data-composition-id="main" data-start="0" data-duration="24" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-2xc0" id="bg"></div>
+
+      <!-- 0-3: hook, with the real page headline swapping Georgia to Inter -->
+      <section data-hf-id="hf-b43s" id="intro" class="clip" data-start="0" data-duration="3" data-track-index="1">
+        <div data-hf-id="hf-jyqt" id="intro-brand">
+          <img data-hf-id="hf-s4o6" class="icon" src="assets/swapfont.png" width="64" height="64" alt="">
+          <span data-hf-id="hf-c4oz">SwapFont</span>
+        </div>
+        <h1 data-hf-id="hf-np0h" id="intro-title">Try fonts.<br data-hf-id="hf-x5px"><span data-hf-id="hf-b7xo" class="accent">On the real page.</span></h1>
+        <div data-hf-id="hf-gp02" id="specimen" class="crop">
+          <img data-hf-id="hf-bdlo" data-layout-allow-overflow="" id="specimen-a" src="assets/02-choose-a-font.png" alt="">
+          <img data-hf-id="hf-yftn" data-layout-allow-overflow="" id="specimen-b" src="assets/03-swap-instantly.png" alt="">
+        </div>
+        <div data-hf-id="hf-r7ee" id="specimen-label">
+          <span data-hf-id="hf-1jhv" class="from">Georgia</span>
+          <span data-hf-id="hf-bl30" id="specimen-to" class="to">→ Inter</span>
+        </div>
+      </section>
+
+      <!-- 3-20: one persistent window onto the real extension screenshots -->
+      <section data-hf-id="hf-r0fi" id="lockup" class="clip" data-start="3" data-duration="17" data-track-index="1">
+        <div data-hf-id="hf-ydso" id="lockup-inner">
+          <img data-hf-id="hf-ox32" class="icon" src="assets/swapfont.png" width="40" height="40" alt="">
+          <span data-hf-id="hf-vuir">SwapFont</span>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-0dw3" id="shot" class="clip" data-start="3" data-duration="17" data-track-index="2">
+        <div data-hf-id="hf-r9fp" id="shot-frame">
+          <div data-hf-id="hf-j1he" id="stage" data-layout-allow-overflow="">
+            <img data-hf-id="hf-xukg" id="img01" src="assets/01-pick-a-font.png" alt="">
+            <img data-hf-id="hf-vuho" id="img02" src="assets/02-choose-a-font.png" alt="">
+            <img data-hf-id="hf-w6o5" id="img03" src="assets/03-swap-instantly.png" alt="">
+            <img data-hf-id="hf-ucny" id="img04" src="assets/04-multiple-swaps.png" alt="">
+            <div data-hf-id="hf-bc4b" id="note-head" class="note"><i data-hf-id="hf-wt6k"></i>Georgia → Inter</div>
+            <div data-hf-id="hf-wja8" id="note-body" class="note"><i data-hf-id="hf-zeb8"></i>Arial → Lora</div>
+            <div data-hf-id="hf-8gdj" id="cursor">
+              <div data-hf-id="hf-m1rf" id="ring"></div>
+              <svg data-hf-id="hf-iihu" width="26" height="32" viewBox="0 0 26 32">
+                <path data-hf-id="hf-rm5i" d="M3 3 L3 25 L8.6 19.8 L12.4 28.6 L16.2 27 L12.5 18.4 L20.4 18.4 Z" fill="#111111" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-lqut" id="copy2" class="clip" data-start="3" data-duration="5" data-track-index="3">
+        <div data-hf-id="hf-fwjn" class="copy" id="copy2-inner">
+          <h2 data-hf-id="hf-yn43" class="big">
+            <span data-hf-id="hf-6olr" id="c2-a">Hover.</span>
+            <span data-hf-id="hf-43n6" id="c2-b">Click.</span>
+            <span data-hf-id="hf-wb9y" id="c2-c">Pick.</span>
+          </h2>
+          <p data-hf-id="hf-1kqp" id="c2-p">Point at any text to see its font.</p>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-8pug" id="copy3" class="clip" data-start="8" data-duration="6" data-track-index="3">
+        <div data-hf-id="hf-igxq" class="copy" id="copy3-inner">
+          <h2 data-hf-id="hf-yil3" class="mid">
+            <span data-hf-id="hf-86f1" id="c3-a">Choose a font.</span>
+            <span data-hf-id="hf-24o7" id="c3-b">See it instantly.</span>
+          </h2>
+          <p data-hf-id="hf-mnra" id="c3-p">Search for a font. The page updates.</p>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-yltj" id="copy4" class="clip" data-start="14" data-duration="6" data-track-index="3">
+        <div data-hf-id="hf-4jdp" class="copy" id="copy4-inner">
+          <h2 data-hf-id="hf-ro9j" class="mid">
+            <span data-hf-id="hf-phcy" id="c4-a">Try more than</span>
+            <span data-hf-id="hf-rq6r" id="c4-b">one font.</span>
+          </h2>
+          <p data-hf-id="hf-6irp" id="c4-p">Georgia to Inter. Arial to Lora.</p>
+        </div>
+      </section>
+
+      <!-- 20-24: end card, with the page's own Aa tile following the swaps -->
+      <section data-hf-id="hf-c2kw" id="outro" class="clip" data-start="20" data-duration="4" data-track-index="1">
+        <div data-hf-id="hf-v55u" id="outro-text">
+          <img data-hf-id="hf-iqu3" id="outro-icon" class="icon" src="assets/swapfont.png" width="112" height="112" alt="">
+          <div data-hf-id="hf-kgrc" id="outro-name">SwapFont</div>
+          <div data-hf-id="hf-qys4" id="outro-tag">Preview website fonts instantly.</div>
+          <div data-hf-id="hf-l5qb" id="outro-url">omshejul.com/app/swapfont</div>
+        </div>
+        <div data-hf-id="hf-bz44" id="tile" class="crop">
+          <img data-hf-id="hf-jldq" data-layout-allow-overflow="" id="tile-a" src="assets/02-choose-a-font.png" alt="">
+          <img data-hf-id="hf-qikd" data-layout-allow-overflow="" id="tile-b" src="assets/03-swap-instantly.png" alt="">
+          <img data-hf-id="hf-gjs0" data-layout-allow-overflow="" id="tile-c" src="assets/04-multiple-swaps.png" alt="">
+        </div>
+      </section>
+
+      <!-- Original soundtrack, synthesized locally by scripts/make_audio.py -->
+      <audio id="music-bed" src="sfx/music-bed.wav" data-start="0" data-duration="24" data-track-index="10" data-volume="0.7"></audio>
+      <audio id="sfx-swap-1" src="sfx/swap-a.wav" data-start="1.5" data-duration="0.5" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="sfx-click-1" src="sfx/click.wav" data-start="7.625" data-duration="0.09" data-track-index="11" data-volume="0.8"></audio>
+      <audio id="sfx-click-2" src="sfx/click.wav" data-start="10" data-duration="0.09" data-track-index="11" data-volume="0.8"></audio>
+      <audio id="sfx-swap-2" src="sfx/swap-f.wav" data-start="11" data-duration="0.5" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="sfx-swap-3" src="sfx/swap-g.wav" data-start="14" data-duration="0.5" data-track-index="11" data-volume="0.55"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+
+      const show = (sel, t, d = 0.45, y = 18) =>
+        tl.fromTo(sel, { opacity: 0, y }, { opacity: 1, y: 0, duration: d }, t);
+      const fade = (sel, t, from, to, d = 0.25) =>
+        tl.fromTo(sel, { opacity: from }, { opacity: to, duration: d, ease: "power2.inOut", immediateRender: false }, t);
+      const cut = (sel, t, d = 0.18) =>
+        tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: d, ease: "none" }, t);
+
+      // Camera over the 1280x800 screenshot, clamped so the frame never shows past its edges
+      const W = 992, H = 620, BASE = 0.775;
+      const view = (cx, cy, s) => {
+        const k = BASE * s;
+        return {
+          x: Math.min(0, Math.max(W - 1280 * k, W / 2 - cx * k)),
+          y: Math.min(0, Math.max(H - 800 * k, H / 2 - cy * k)),
+          scale: k,
+        };
+      };
+      const FULL = view(640, 400, 1);
+      const PAGE = view(457, 305, 1.4);
+      const PANEL = view(880, 250, 1.6);
+      const ROWS = view(1013, 166, 2.4);
+      let camAt = FULL;
+      gsap.set("#stage", { ...FULL });
+      const cam = (t, d, v) => {
+        tl.fromTo("#stage", { ...camAt }, { ...v, duration: d, ease: "power3.inOut", immediateRender: false }, t);
+        camAt = v;
+      };
+      let curAt = { x: 416, y: 250 };
+      gsap.set("#cursor", { ...curAt, opacity: 0 });
+      gsap.set("#ring", { opacity: 0, scale: 0.3 });
+      const move = (t, d, x, y) => {
+        tl.fromTo("#cursor", { ...curAt }, { x, y, duration: d, ease: "power2.inOut", immediateRender: false }, t);
+        curAt = { x, y };
+      };
+      const click = (t) =>
+        tl.fromTo("#ring", { opacity: 0.9, scale: 0.3 }, { opacity: 0, scale: 1.3, duration: 0.5, ease: "power2.out", immediateRender: false }, t);
+
+      // 0-3 hook
+      show("#intro-brand", 0.15);
+      show("#intro-title", 0.3, 0.55, 24);
+      show("#specimen", 0.6, 0.55, 24);
+      show("#specimen-label", 0.85, 0.4, 0);
+      cut("#specimen-b", 1.5);
+      tl.fromTo("#specimen-to", { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.3 }, 1.5);
+      fade("#intro", 2.75, 1, 0);
+
+      // 3-8 pick
+      show("#lockup-inner", 3.0, 0.4, 0);
+      show("#shot-frame", 3.0, 0.5, 28);
+      show("#c2-a", 3.2);
+      show("#c2-p", 3.4);
+      cam(3.7, 0.8, PAGE);
+      // Cursor rests beside the Georgia tooltip for as long as screenshot 01 is up
+      fade("#cursor", 2.9, 0, 1, 0.1);
+      show("#c2-b", 5.4);
+      fade("#c2-a", 5.4, 1, 0.4);
+      click(7.625);
+      show("#c2-c", 6.4);
+      fade("#c2-b", 6.4, 1, 0.4);
+      cam(6.4, 0.7, FULL);
+      fade("#cursor", 7.9, 1, 0, 0.1);
+      fade("#copy2-inner", 7.75, 1, 0);
+
+      // 8-14 choose, then the page updates
+      cut("#img02", 7.9, 0.1);
+      show("#c3-a", 8.05);
+      show("#c3-p", 8.25);
+      cam(8.1, 0.8, PANEL);
+      move(8.0, 0.1, 1190, 340);
+      fade("#cursor", 8.6, 0, 1, 0.2);
+      move(8.8, 0.7, 1012, 232);
+      click(10.0);
+      fade("#cursor", 10.2, 1, 0, 0.2);
+      cam(10.2, 0.6, FULL);
+      cut("#img03", 11.0, 0.12);
+      show("#c3-b", 11.0);
+      fade("#c3-a", 11.0, 1, 0.4);
+      fade("#copy3-inner", 13.75, 1, 0);
+
+      // 14-20 two swaps at once
+      cut("#img04", 14.0, 0.12);
+      show("#c4-a", 14.05);
+      show("#c4-b", 14.15);
+      show("#c4-p", 14.35);
+      cam(15.0, 0.8, ROWS);
+      cam(17.0, 0.8, PAGE);
+      tl.fromTo("#note-head", { opacity: 0, x: -12 }, { opacity: 1, x: 0, duration: 0.35 }, 18.0);
+      tl.fromTo("#note-body", { opacity: 0, x: -12 }, { opacity: 1, x: 0, duration: 0.35 }, 18.5);
+      fade("#note-head", 19.6, 1, 0, 0.2);
+      fade("#note-body", 19.6, 1, 0, 0.2);
+      fade("#shot-frame", 19.7, 1, 0);
+      fade("#lockup-inner", 19.7, 1, 0);
+      fade("#copy4-inner", 19.7, 1, 0);
+
+      // 20-24 end card
+      show("#outro-icon", 20.1, 0.5, 20);
+      show("#outro-name", 20.2, 0.5, 20);
+      show("#outro-tag", 20.4, 0.5, 20);
+      show("#outro-url", 20.7, 0.5, 20);
+      show("#tile", 20.4, 0.5, 20);
+      cut("#tile-b", 21.0);
+      cut("#tile-c", 22.0);
+
+      tl.set({}, {}, 24);
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

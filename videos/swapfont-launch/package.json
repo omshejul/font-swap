@@ -1,0 +1,14 @@
+{
+  "name": "swapfont-launch",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.8.141 preview",
+    "check": "npx --yes hyperframes@0.8.141 check",
+    "render": "npx --yes hyperframes@0.8.141 render",
+    "lint": "npx --yes hyperframes@0.8.141 lint"
+  },
+  "dependencies": {
+    "gsap": "^3.14.2"
+  }
+}
