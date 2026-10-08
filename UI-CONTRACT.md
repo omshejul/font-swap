@@ -20,6 +20,8 @@ The empty panel uses the same Pick from page source row, with no separate intro 
 
 The source, apply, compare, element scope and sample actions remain internal compatibility APIs. They are not part of this simplified UI.
 
+Both layouts use a compact title bar separated from the body by a subtle divider. In dark mode its background is charcoal #303134; light mode uses the equivalent light surface. Keep the brand and actions on one row, with a 22px icon, 15px title, 26px icon controls and 8px by 10px header padding. The floating panel has 12px outer corners.
+
 The floating mode reuses these controls in a closed shadow root on the main page, with no iframe or page-width changes. Start 16px from the top-right, at 320px wide or the available viewport width. The header has an SVG drag grip and close button. Dragging, focused-grip arrow keys, viewport resize and content expansion keep the panel within reach. Closing cancels picking and preserves swaps. The toolbar reopens the same panel. Exclude its text and controls from picking, hover detection, font matching and mutation scanning. Keep the same loading, error, light/dark and reduced-motion behavior. The worker accepts panel commands from its authenticated main-frame content script and takes the tab ID from that sender. Both modes share one manifest, toolbar action and packaged ZIP. A header icon describes the destination mode: Float on page in the sidebar, Dock to side panel in the floating panel. Switching cancels picking and preserves active swaps. Remember the last successfully chosen mode in local extension storage. New installs use the side panel. Show one mode at a time in the active window. No Notes disclosure.
 
 ## Saved site pairs

@@ -12,7 +12,7 @@
   host.setAttribute('data-font-swap-panel','');
   host.setAttribute('role','region');
   host.setAttribute('aria-label','SwapFont floating panel');
-  const styles={all:'initial',display:'block',position:'fixed',top:'16px',right:'16px',width:'min(320px, calc(100vw - 32px))','max-height':'calc(100dvh - 32px)',overflow:'auto','z-index':'2147483645',background:'var(--bg)',color:'var(--text)',font:'14px/1.4 system-ui, sans-serif',border:'1px solid var(--border)','border-radius':'8px','box-shadow':'0 8px 32px #0003','box-sizing':'border-box',direction:'ltr','text-align':'left',opacity:'1',transform:'none','color-scheme':'light dark'};
+  const styles={all:'initial',display:'block',position:'fixed',top:'16px',right:'16px',width:'min(320px, calc(100vw - 32px))','max-height':'calc(100dvh - 32px)',overflow:'auto','z-index':'2147483645',background:'var(--bg)',color:'var(--text)',font:'14px/1.4 system-ui, sans-serif',border:'1px solid var(--border)','border-radius':'12px','box-shadow':'0 8px 32px #0003','box-sizing':'border-box',direction:'ltr','text-align':'left',opacity:'1',transform:'none','color-scheme':'light dark'};
   for (const [key,value] of Object.entries(styles)) host.style.setProperty(key,value,'important');
   const root=host.attachShadow({mode:'closed'});
   const sheet=new CSSStyleSheet();
@@ -21,11 +21,13 @@
     .panel-content { flex: none; overflow: visible; }
     .panel-header { cursor: grab; touch-action: none; }
     .panel-header h1 { margin-right: auto; }
-    .floating-control { display: grid; place-items: center; flex: none; width: 24px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
-    .floating-control:hover { background: var(--surface); color: var(--text); }
-    #move-panel { cursor: grab; }
+    .floating-control { display: grid; place-items: center; flex: none; width: 26px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
+    .floating-control:hover { background: var(--header-hover); color: var(--text); }
+    #move-panel { width: 16px; margin-left: -6px; margin-right: 6px; cursor: grab; }
+    #move-panel svg { width: 12px; height: 16px; }
     .panel-header:active, #move-panel:active { cursor: grabbing; }
-    .brand-icon { flex: none; width: 24px; height: 24px; border-radius: 5px; }
+    .brand-icon { flex: none; width: 22px; height: 22px; border-radius: 6px; }
+    .brand-icon rect { fill: var(--brand-bg) !important; }
   `);
   root.adoptedStyleSheets=[sheet];
   const parser=new DOMParser();
