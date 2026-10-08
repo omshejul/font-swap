@@ -294,8 +294,14 @@ h1 img {
 .results {
   max-height: 232px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) transparent;
   border-top: 1px solid var(--border);
 }
+
+.results::-webkit-scrollbar { width: 6px; }
+.results::-webkit-scrollbar-track { background: transparent; }
+.results::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
 
 .result {
   padding: 9px 8px;
