@@ -35,4 +35,4 @@ Processing happens locally for website text/styles, picker mouse positions/click
 
 The store draft conservatively declares Website content, User activity, Web history and Location because of that local URL handling and the IP address used by Google Fonts. No browsing-history archive or precise location tracking is implemented. No remote executable code is used.
 
-Promo video: https://www.youtube.com/watch?v=gjNCp8FUwwg. Version 0.4.2 is pending review with automatic publishing enabled. Version 0.5.0 adds optional saved site pairs; upload it and update the description/permission justifications before submitting that version.
+Promo video: https://www.youtube.com/watch?v=gjNCp8FUwwg. Version 0.5.0 was submitted on October 8, 2026 and is pending review with automatic publishing enabled. The description, permission justifications and reviewer instructions include optional saved site pairs. Manual Chrome checks confirmed the per-host permission prompt, automatic restoration after reload, shared state in both layouts, forgetting and Undo all.
