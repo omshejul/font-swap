@@ -22,7 +22,7 @@ export async function attachPanel(browserCDP,targetId) {
  };
  const wait=async expression=>{
   const until=Date.now()+15000;let lastError;while(Date.now()<until){try{if(await evaluate(expression))return;}catch(error){lastError=error;}await new Promise(r=>setTimeout(r,80));}
-  const details=await evaluate("JSON.stringify({text:document.body.innerText,search:document.getElementById('search')?.value,focus:document.activeElement?.id})").catch(()=>'');
+  const details=await evaluate("JSON.stringify({text:document.body.innerText,search:document.getElementById('search')?.value,focus:document.activeElement?.id,trace:window.__fontTrace})").catch(()=>'');
   await screenshot('native-panel-failure.png').catch(()=>{});
   throw new Error(`Native panel condition timed out: ${expression}${lastError ? '\n'+lastError.message : ''}\n${details}`);
  };
@@ -43,6 +43,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  for(let i=0;i<50;i++){panelTarget=(await browserCDP.send('Target.getTargets')).targetInfos.find(t=>t.url===`chrome-extension://${id}/sidepanel.html`);if(panelTarget)break;await page.waitForTimeout(80);}
  assert(panelTarget,'Native Chrome side panel did not open');
  const panel=await attachPanel(browserCDP,panelTarget.targetId);
+ await panel.evaluate(`(()=>{window.__fontTrace=[];const brief=s=>s&&({source:s.source,destination:s.destination?.family,picking:s.picking,status:s.status,rules:s.rules?.length});const log=(kind,action,s)=>{window.__fontTrace.push({at:Math.round(performance.now()),kind,action,state:brief(s)});window.__fontTrace=window.__fontTrace.slice(-35);};chrome.runtime.onMessage.addListener(m=>{if(m.type==='STATE_CHANGED')log('event','changed',m.state);});const send=chrome.runtime.sendMessage.bind(chrome.runtime);chrome.runtime.sendMessage=async m=>{log('send',m.action);const r=await send(m);log('response',m.action,r?.state);return r;};})()`);
  const choose=async (family,refreshDuringClick=false)=>{
   await panel.click('#search');await panel.command('Input.insertText',{text:family});
   await panel.wait(`!!document.querySelector('#results .result[data-family="${family}"]')`);
@@ -81,8 +82,17 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
  await panel.wait("document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('Inter')");
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);
- await panel.click('#undo');await panel.wait("document.querySelectorAll('.pair').length===0");assert.doesNotMatch(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ await panel.click('#undo');await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");assert.doesNotMatch(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  passed('native panel searches, applies instantly, edits by keyboard and undoes on public iana.org');
+ assert.equal(await panel.evaluate("!!document.getElementById('intro') || !!document.getElementById('pick-source')"),false);
+ assert.equal(await panel.evaluate("document.querySelector('.pair-source .pair-remove').hidden"),true);
+ assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.pair-source .pair-from'),'::after').animationName"),'none');
+ await panel.click('.pair-source .pair-edit');await panel.wait("!!document.querySelector('.pair-awaiting')");
+ assert.equal(await page.locator('[data-font-swap-picker]').count(),1);
+ await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+ await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)') && document.getElementById('picking').hidden");
+ assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
+ passed('empty panel reuses the Pick from page row; clicking starts picking and Escape leaves it idle without an intro screen');
  await page.goto(fixtureURL);await trigger();await panel.wait("!document.getElementById('picking').hidden");
  await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .pair-from')?.textContent==='Arial'");
  assert.match(await panel.evaluate("document.getElementById('warning-list').textContent"),/frames.*not accessible/i);
@@ -130,11 +140,11 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await panel.wait("!document.getElementById('warnings').open");
  passed('expanded two-pair accordion fits 320px and renders light and dark themes');
  await panel.click('.pair-remove');await panel.wait("document.querySelectorAll('.pair').length===1");assert.doesNotMatch(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);assert.match(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
- await panel.click('#undo');await panel.wait("document.querySelectorAll('.pair').length===0");assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),'monospace');
+ await panel.click('#undo');await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),'monospace');
  passed('native panel removes one pair independently and Undo all restores the rest');
- await panel.click('#pick-source');await page.locator('#body').click();await panel.wait("!document.getElementById('pick-dest').hidden");await panel.click('#pick-dest');await page.locator('#generic').click();
+ await panel.click('.pair-source .pair-edit');await page.locator('#body').click();await panel.wait("!document.getElementById('pick-dest').hidden");await panel.click('#pick-dest');await page.locator('#generic').click();
  await panel.wait("document.getElementById('steps').hidden && document.getElementById('pairs').textContent.includes('monospace')");assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/^monospace,/);await panel.click('#undo');
  passed('native panel page-picked destination applies immediately and collapses to pair');
- await page.reload();await panel.wait("document.querySelectorAll('.pair').length===0 && !document.getElementById('intro').hidden");await panel.click('#pick-source');await page.keyboard.press('Escape');await panel.wait("document.getElementById('picking').hidden");passed('native panel reconnects after navigation and Escape cancels picker');
+ await page.reload();await panel.wait("!!document.querySelector('.pair-source:not(.pair-awaiting)')");await panel.click('.pair-source .pair-edit');await page.keyboard.press('Escape');await panel.wait("document.getElementById('picking').hidden");passed('native panel reconnects after navigation and Escape cancels picker');
  await page.close();await browserCDP.detach();
 }

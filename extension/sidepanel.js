@@ -17,8 +17,6 @@ const els = {
   pairs: $('pairs'),
   stepsHome: $('steps-home'),
   steps: $('steps'),
-  pickSource: $('pick-source'),
-  intro: $('intro'),
   search: $('search'),
   results: $('results'),
   pickDest: $('pick-dest'),
@@ -81,6 +79,7 @@ function showView(name) {
 
 async function connect() {
   clearTimeout(reconnectTimer);
+  if (busy) { scheduleConnect(); return; }
   const epoch = ++tabEpoch;
   state = null;
   busy = false;
@@ -96,8 +95,9 @@ async function connect() {
   // The panel itself can be the active tab when opened as a page. Keep the last real tab.
   if (tab && tab.url && tab.url.startsWith(chrome.runtime.getURL(''))) tab = tabId === null ? null : { id: tabId };
   tabId = tab ? tab.id : null;
+  const priorState = state;
   const response = tabId === null ? { ok: false, error: 'Open a website first.' } : await send('connect');
-  if (response.stale || epoch !== tabEpoch) return;
+  if (response.stale || epoch !== tabEpoch || state !== priorState) return;
   if (!response.ok || !response.state) {
     els.connectError.textContent = describeError(response.error);
     showView('error');
@@ -143,19 +143,18 @@ function render() {
   const rules = Array.isArray(state.rules) ? state.rules : [];
   const editing = Boolean(state.source) && sourceKey(state) !== doneKey && sourceKey(state) !== dismissedKey && state.picking !== 'source';
   const canSearch = Boolean(state.source) && !state.picking && !busy;
+  const waitingForSource = state.picking === 'source' || (!rules.length && (!state.source || sourceKey(state) === dismissedKey));
 
   views.main.inert = busy;
   views.main.setAttribute('aria-busy', String(busy));
   els.undo.hidden = !rules.length;
   els.undo.disabled = busy;
   els.picking.hidden = !state.picking;
-  const inline = renderPairs(rules, editing);
+  const inline = renderPairs(rules, editing, waitingForSource);
 
   els.steps.hidden = !editing;
   els.stepsHome.hidden = !editing || inline;
-  els.intro.hidden = Boolean(state.picking) || rules.length > 0 || (Boolean(state.source) && sourceKey(state) !== dismissedKey);
-  els.pickSource.hidden = state.picking === 'source';
-  els.another.hidden = !els.intro.hidden || state.picking === 'source';
+  els.another.hidden = waitingForSource;
   els.picking.querySelector('p').textContent = state.picking === 'destination' ? 'Click the replacement font on the page' : 'Click text on the page';
   els.search.disabled = !state.source || busy;
   els.pickDest.hidden = !canSearch;
@@ -171,8 +170,7 @@ function render() {
   els.warningList.replaceChildren(...warnings.map((text) => Object.assign(document.createElement('li'), { textContent: text })));
 }
 
-function renderPairs(rules, editing) {
-  const waitingForSource = state.picking === 'source';
+function renderPairs(rules, editing, waitingForSource) {
   const hasDraft = !waitingForSource && state.source && !rules.some(rule => `${rule.frameId}:${rule.source}` === sourceKey(state)) && sourceKey(state) !== dismissedKey;
   const rows = waitingForSource ? [...rules, {id:'picking',frameId:state.frameId,source:'Pick from page',destination:null}] : hasDraft ? [...rules, {id:'draft', frameId:state.frameId, source:state.source, destination:null}] : rules;
   els.pairs.hidden = !rows.length;
@@ -191,7 +189,7 @@ function renderPairs(rules, editing) {
     const draft = waiting || rule.id === 'draft';
     const to = destinationName(rule.destination) || 'Choose font';
     const item = document.createElement('li');
-    item.className = waiting ? 'pair pair-pending pair-awaiting' : draft ? 'pair pair-pending' : 'pair';
+    item.className = waiting ? `pair pair-pending pair-source${state.picking === 'source' ? ' pair-awaiting' : ''}` : draft ? 'pair pair-pending' : 'pair';
     const header = Object.assign(document.createElement('div'), { className: 'pair-header' });
     const body = Object.assign(document.createElement('div'), { className: 'pair-body', id: `pair-${rule.frameId}-${rule.id}` });
     const open = waiting || `${rule.frameId}:${from}` === openKey;
@@ -199,9 +197,9 @@ function renderPairs(rules, editing) {
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'pair-edit';
-    edit.dataset.action = waiting ? 'cancel-pick' : draft ? 'draft-select' : 'select';
+    edit.dataset.action = waiting ? state.picking ? 'cancel-pick' : 'pick-source' : draft ? 'draft-select' : 'select';
     edit.id = `edit-${rule.frameId}-${rule.id}`;
-    edit.setAttribute('aria-label', `Change ${from} to ${to}`);
+    edit.setAttribute('aria-label', waiting ? 'Pick a font from the page' : `Change ${from} to ${to}`);
     edit.setAttribute('aria-expanded', String(open));
     edit.setAttribute('aria-controls', body.id);
     const arrow = Object.assign(document.createElement('span'), { className: 'pair-arrow', textContent: '→' });
@@ -222,6 +220,7 @@ function renderPairs(rules, editing) {
     remove.className = 'pair-remove';
     remove.dataset.action = waiting ? 'cancel-pick' : draft ? 'draft-remove' : 'remove';
     remove.textContent = '×';
+    remove.hidden = waiting && !state.picking;
     remove.setAttribute('aria-label', `Remove ${from} to ${to}`);
     for (const button of [edit, remove]) {
       button.dataset.ruleId = rule.id;
@@ -231,7 +230,7 @@ function renderPairs(rules, editing) {
     if (open) {
       if (state.picking) body.append(els.picking);
       if (waiting) {
-        body.append(Object.assign(document.createElement('p'), {className:'note',textContent:'Hover text to see its font. Click to pick it.'}));
+        if (state.picking) body.append(Object.assign(document.createElement('p'), {className:'note',textContent:'Hover text to see its font. Click to pick it.'}));
       } else body.append(els.steps);
       body.append(els.note,els.error);
     }
@@ -352,13 +351,13 @@ function setActive(index, scroll = true) {
 els.retry.addEventListener('click', connect);
 els.cancel.addEventListener('click', () => run('cancel'));
 els.undo.addEventListener('click', () => run('undo'));
-els.pickSource.addEventListener('click', () => run('pick', { mode: 'source' }));
 els.another.addEventListener('click', () => run('pick', { mode: 'source' }));
 els.pickDest.addEventListener('click', () => run('pick', { mode: 'destination' }));
 
 els.pairs.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button || busy) return;
+  if (button.dataset.action === 'pick-source') { await run('pick', { mode: 'source' }); return; }
   if (button.dataset.action === 'cancel-pick') {
     if (!event.target.closest('.pair-from')) await run('cancel');
     return;
@@ -368,7 +367,7 @@ els.pairs.addEventListener('click', async (event) => {
     if (button.dataset.action === 'draft-remove') { dismissedKey = sourceKey(state); doneKey = dismissedKey; }
     else doneKey = button.getAttribute('aria-expanded') === 'true' ? sourceKey(state) : '';
     render();
-    (button.dataset.action === 'draft-remove' ? (els.another.hidden ? els.pickSource : els.another) : els.steps.hidden ? $(button.id) : els.search)?.focus();
+    (button.dataset.action === 'draft-remove' ? (els.another.hidden ? els.pairs.querySelector('[data-action="pick-source"]') : els.another) : els.steps.hidden ? $(button.id) : els.search)?.focus();
     return;
   }
   const payload = { ruleId: button.dataset.ruleId, frameId: Number(button.dataset.frameId) };
@@ -392,7 +391,7 @@ els.pairs.addEventListener('click', async (event) => {
     }
   } else if (await run('remove', payload)) {
     if (sourceKey(state) === `${rule.frameId}:${rule.source}`) { dismissedKey = doneKey = sourceKey(state); render(); }
-    (els.another.hidden ? els.pickSource : els.another).focus();
+    (els.another.hidden ? els.pairs.querySelector('[data-action="pick-source"]') : els.another)?.focus();
   }
 });
 

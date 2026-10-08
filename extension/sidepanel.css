@@ -222,19 +222,6 @@ h1 img {
 
 /* Page picking and replacement editor */
 
-.intro { display: flex; flex-direction: column; gap: 12px; }
-.intro p { color: var(--muted); }
-.pick-prompt {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 17px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-
 .font-choice {
   display: flex;
   flex-direction: column;
@@ -351,7 +338,7 @@ h1 img {
 .pair-from { color: var(--muted); }
 .pair-to { font-weight: 600; }
 .pair-pending .pair-to { color: var(--accent); }
-.pair-awaiting .pair-from {
+.pair-source .pair-from {
   display: inline-flex;
   align-items: center;
   position: relative;
@@ -361,19 +348,22 @@ h1 img {
   border-radius: 8px;
   color: var(--accent);
 }
-.pair-awaiting .pair-from::after {
+.pair-source .pair-from::after {
   position: absolute;
   inset: -2px;
   border: 2px dashed color-mix(in srgb, var(--accent) 80%, transparent);
   border-radius: inherit;
   pointer-events: none;
   content: '';
+  opacity: 0.7;
+}
+.pair-awaiting .pair-from::after {
   animation: picker-border 1.6s ease-in-out infinite alternate;
 }
 @keyframes picker-border { from { opacity: 0.45; } to { opacity: 0.9; } }
 @media (prefers-reduced-motion: reduce) { .pair-awaiting .pair-from::after { animation: none; opacity: 0.7; } }
-.pair-awaiting .pair-edit { gap: 4px; font-size: 14px; }
-.pair-awaiting .pair-to { color: var(--muted); font-weight: 400; }
+.pair-source .pair-edit { gap: 4px; font-size: 14px; }
+.pair-source .pair-to { color: var(--muted); font-weight: 400; }
 #messages-home:has(.note:empty):has(.error[hidden]) { display: none; }
 
 .pair-edit .pair-arrow {
