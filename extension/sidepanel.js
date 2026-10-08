@@ -51,6 +51,7 @@ let catalog = null;
 let catalogLoading = null;
 let matches = [];
 let activeIndex = -1;
+let switchingMode = false;
 let pairsSignature = '';
 let resultsSignature = '';
 
@@ -269,7 +270,7 @@ async function run(action, payload = {}, family = '') {
   return Boolean(response.ok);
 }
 
-async function choose(family) {
+async function choose(family, focusRow = true) {
   const key = sourceKey(state);
   if (!key) return;
   const ok = await run('preview', { destination: { kind: 'google', family }, scope: 'all' }, family);
@@ -278,7 +279,7 @@ async function choose(family) {
   els.search.value = '';
   render();
   const rule = state.rules.find(rule => `${rule.frameId}:${rule.source}` === key);
-  $(`edit-${rule?.frameId}-${rule?.id}`)?.focus();
+  if (focusRow) $(`edit-${rule?.frameId}-${rule?.id}`)?.focus();
 }
 
 // Search
@@ -359,8 +360,10 @@ function setActive(index, scroll = true) {
 els.mode.addEventListener('click', async () => {
   if (busy || els.mode.disabled || tabId === null) return;
   els.mode.disabled = true;
+  switchingMode = true;
   const response = await send('mode', { mode: floating ? 'sidepanel' : 'floating' });
   els.mode.disabled = false;
+  if (!response.ok) switchingMode = false;
   if (!response.ok && !response.stale) {
     els.connectError.textContent = describeError(response.error);
     if (state) { errorText = describeError(response.error); render(); }
@@ -400,7 +403,7 @@ els.pairs.addEventListener('click', async (event) => {
       if (state.picking) await run('cancel');
       doneKey = sourceKey(state);
       render();
-      $(button.id)?.focus();
+      if (event.detail === 0) $(button.id)?.focus();
       return;
     }
     if (await run('select', payload)) {
@@ -439,7 +442,7 @@ els.search.addEventListener('keydown', (event) => {
 els.results.addEventListener('mousedown', (event) => event.preventDefault());
 els.results.addEventListener('click', (event) => {
   const option = event.target.closest('.result');
-  if (option) choose(matches[Number(option.dataset.index)].family);
+  if (option) choose(matches[Number(option.dataset.index)].family, event.detail === 0);
 });
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -451,6 +454,11 @@ if (!floating) chrome.tabs.onActivated.addListener(scheduleConnect);
 if (!floating) chrome.tabs.onUpdated.addListener((id, change) => {
   if (id === tabId && change.status === 'complete') scheduleConnect();
 });
+if (!floating) {
+  const cancelPicking = () => { if (!switchingMode && tabId !== null) send('cancel'); };
+  window.addEventListener('pagehide', cancelPicking);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelPicking(); else switchingMode = false; });
+}
 (floating ? root : document).addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && state?.picking) {
     event.preventDefault();
