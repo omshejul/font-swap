@@ -140,7 +140,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);
  assert.equal(await panel.evaluate("document.querySelector('.pair-edit').getAttribute('aria-expanded')"),'false');
  passed('adding a font opens a blinking dashed source placeholder that wraps at 240px with instructions and Cancel on the page; Cancel preserves swaps');
- await panel.click('#another');await page.locator('#generic').click();await panel.wait("!!document.querySelector('.pair-pending')");
+ await panel.click('#another');await page.locator('#generic').click();await panel.wait("document.querySelector('.pair-pending .pair-from')?.textContent==='monospace'");
  const beforeDiscard=await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily);
  await panel.click('.pair-pending .pair-remove');await panel.wait("!document.querySelector('.pair-pending')");
  assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),1);
