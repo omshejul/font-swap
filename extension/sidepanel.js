@@ -13,6 +13,7 @@ const $ = (id) => root.getElementById(id);
 
 const els = {
   undo: $('undo'),
+  mode: $('mode-toggle'),
   connectError: $('connect-error'),
   retry: $('retry'),
   picking: $('picking'),
@@ -28,9 +29,12 @@ const els = {
   another: $('another'),
   note: $('note'),
   error: $('error'),
-  warnings: $('warnings'),
-  warningList: $('warning-list'),
 };
+
+els.mode.title = floating ? 'Dock to side panel' : 'Float on page';
+els.mode.setAttribute('aria-label', els.mode.title);
+els.mode.querySelector('.mode-float').toggleAttribute('hidden', floating);
+els.mode.querySelector('.mode-dock').toggleAttribute('hidden', !floating);
 
 const views = { loading: $('view-loading'), error: $('view-error'), main: $('view-main') };
 
@@ -155,6 +159,7 @@ function render() {
   views.main.setAttribute('aria-busy', String(busy));
   els.undo.hidden = !rules.length;
   els.undo.disabled = busy;
+  els.mode.disabled = busy;
   els.picking.hidden = !state.picking;
   const inline = renderPairs(rules, editing, waitingForSource);
 
@@ -173,9 +178,6 @@ function render() {
   const shown = [...new Set([errorText, pageError && describeError(pageError)].filter(Boolean))].join(' ');
   els.error.textContent = shown;
   els.error.hidden = !shown;
-  const warnings = Array.isArray(state.warnings) ? state.warnings : [];
-  els.warnings.hidden = !warnings.length;
-  els.warningList.replaceChildren(...warnings.map((text) => Object.assign(document.createElement('li'), { textContent: text })));
 }
 
 function renderPairs(rules, editing, waitingForSource) {
@@ -355,6 +357,18 @@ function setActive(index, scroll = true) {
 }
 
 // Events
+
+els.mode.addEventListener('click', async () => {
+  if (busy || els.mode.disabled || tabId === null) return;
+  els.mode.disabled = true;
+  const response = await send('mode', { mode: floating ? 'sidepanel' : 'floating' });
+  els.mode.disabled = false;
+  if (!response.ok && !response.stale) {
+    els.connectError.textContent = describeError(response.error);
+    if (state) { errorText = describeError(response.error); render(); }
+    else showView('error');
+  }
+});
 
 els.retry.addEventListener('click', connect);
 els.cancel.addEventListener('click', () => run('cancel'));

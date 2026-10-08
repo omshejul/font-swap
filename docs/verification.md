@@ -1,8 +1,8 @@
 # Verification
 
-Verified 2026-10-08T05:37:57.653Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
+Verified 2026-10-08T06:06:53.629Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
-Manifest and syntax checks passed. Five unit tests passed. All 46 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
+Manifest and syntax checks passed. Five unit tests passed. All 48 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.
 
 The fixture browser used loopback-only permissions in a temporary manifest copy to exercise permitted frames. The native-panel browser used the exact production manifest and a real toolbar action. Test browsers, fixture servers and temporary profiles were closed.
 
@@ -140,3 +140,9 @@ Held a real Google Font download open in the production-manifest native panel, v
 Added a separately packaged SwapFont Floating build. It reuses the sidebar controls inside a closed shadow root, with a draggable header, keyboard movement, viewport clamping and a close button. Closing stops picking and keeps active swaps. Reopening reuses the panel. Its text and controls are excluded from detection and font replacement.
 
 All 46 end-to-end checks and five unit tests passed. The floating production manifest was tested for unchanged page width, real Google Font loading and spinner, source and replacement picking, multiple swaps, accordion editing, drag and keyboard movement, narrow viewport, Escape, close/reopen, Undo, light/dark themes and strict CSP with frame-src none, style-src none and Trusted Types restrictions. No additional permanent website permission or web-accessible code is needed.
+
+## Unified modes v0.4.0
+
+One manifest and ZIP now include both native side panel and floating panel. The header icon switches modes, cancels active picking and preserves multiple font swaps. The toolbar remembers the last mode across browser restarts. New installs start in the side panel. Notes and the CSS-family/fallback explanation are removed from both modes.
+
+Five unit tests and all 48 end-to-end checks passed. Mode handoffs were tested using real pointer clicks in both directions, with multiple swaps active, picking cancellation, panel visibility and mode storage. The Chrome 116 through 140 close fallback was exercised with close() unavailable in Chrome 152. Existing font rendering, loading, Undo, strict CSP/Trusted Types, dragging, narrow layouts and light/dark checks passed. Temporary browsers, profiles and servers were closed.

@@ -5,8 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import assert from 'node:assert/strict';
 import {testNativePanel} from './native-panel.mjs';
-import {testFloatingPanel} from './floating-panel.mjs';
-import {buildFloating} from '../scripts/build-floating.mjs';
+import {testFloatingPanel,testRememberedMode} from './floating-panel.mjs';
 const temp=await mkdtemp(path.join(tmpdir(),'font-swap-e2e-'));
 const extension=path.join(temp,'extension'); await cp('extension',extension,{recursive:true});
 const manifest=JSON.parse(await readFile(path.join(extension,'manifest.json')));
@@ -113,10 +112,12 @@ try {
  const productionWorker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
  await testNativePanel(context,productionWorker,`http://127.0.0.1:${port}`,passed);
  await context.close();
- const floatingExtension=await buildFloating(path.join(temp,'floating-extension'));
- context=await chromium.launchPersistentContext(path.join(temp,'floating-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${floatingExtension}`,`--load-extension=${floatingExtension}`]});
+ context=await chromium.launchPersistentContext(path.join(temp,'floating-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${path.resolve('extension')}`,`--load-extension=${path.resolve('extension')}`]});
  const floatingWorker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
  await testFloatingPanel(context,floatingWorker,`http://127.0.0.1:${port}`,passed);
+ await context.close();
+ context=await chromium.launchPersistentContext(path.join(temp,'floating-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${path.resolve('extension')}`,`--load-extension=${path.resolve('extension')}`]});
+ await testRememberedMode(context,`http://127.0.0.1:${port}`,passed);
  await mkdir('test-results',{recursive:true});await writeFile('test-results/e2e.json',JSON.stringify({date:new Date().toISOString(),browser:await context.browser().version(),checks},null,2));
  console.log(`${checks.length} end-to-end checks passed.`);
 } finally {if(context)await context.close();await new Promise(resolve=>server.close(resolve));await rm(temp,{recursive:true,force:true});}

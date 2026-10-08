@@ -11,6 +11,10 @@
     <header class="panel-header">
       <h1><img src="icons/icon-32.png" width="24" height="24" alt="">SwapFont</h1>
       <button type="button" id="undo" class="button button-small" hidden>Undo all</button>
+      <button type="button" id="mode-toggle" class="icon-button" title="Float on page" aria-label="Float on page">
+        <svg class="mode-float" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 8h18"/><rect x="10" y="12" width="8" height="6" rx="1"/></svg>
+        <svg class="mode-dock" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18m-8-9h5m-2-2 2 2-2 2"/></svg>
+      </button>
     </header>
 
     <section id="view-loading" class="state-view">
@@ -56,10 +60,6 @@
         <p id="note" class="note" role="status"></p>
         <p id="error" class="error" role="alert" hidden></p>
       </div>
-      <details id="warnings" class="warnings" hidden>
-        <summary><svg class="notes-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>Notes</summary>
-        <ul id="warning-list"></ul>
-      </details>
     </div>
   </main>
   <script src="sidepanel.js" type="module"></script>

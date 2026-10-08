@@ -209,7 +209,7 @@
         compared=false; source=record.family; selectedElement=element; scope='all'; sync();
         const estimate=U.estimate(element,record.stack);
         selection={family:record.family,stack:record.stack,text:record.text.slice(0,160),tag:element.tagName.toLowerCase(),weight:record.weight,style:record.style,size:record.size,confidence:estimate && U.normalize(estimate)===U.normalize(record.family) ? 'estimated' : 'css'};
-        warnings=['Origin is the first CSS family. Fallbacks may render some characters in another font.'];
+        warnings=[];
         status='Choose a font'; revision++; await paint(); announce('picked');
       } else {
         await paint(); status='Loading font'; announce('changed');

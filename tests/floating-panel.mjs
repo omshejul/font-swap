@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {attachPanel} from './native-panel.mjs';
 
 export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await worker.evaluate(()=>new Promise((resolve,reject)=>{const deadline=Date.now()+5000;function ready(){if(chrome.action.onClicked.hasListeners())resolve();else if(Date.now()>deadline)reject(new Error('Toolbar listener not ready'));else setTimeout(ready,20);}ready();}));
@@ -8,6 +9,11 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  const trigger=async()=>{
   const targets=await cdp.send('Target.getTargets',{filter:[{}]});const tab=targets.targetInfos.find(t=>t.type==='tab'&&t.url===page.url());
   await cdp.send('Extensions.triggerAction',{id,targetId:tab.targetId});
+ };
+ const nativePanel=async()=>{
+  const end=Date.now()+10000;
+  while(Date.now()<end){const target=(await cdp.send('Target.getTargets')).targetInfos.find(t=>t.url===`chrome-extension://${id}/sidepanel.html`);if(target)return attachPanel(cdp,target.targetId);await page.waitForTimeout(50);}
+  throw new Error('Docked panel did not open');
  };
  const inspect=async(selector='',property='')=>worker.evaluate(async args=>(await chrome.scripting.executeScript({target:{tabId:args.tabId},func:({selector,property})=>{
   const root=globalThis.__fontSwapPanelRoot;if(!root)return null;
@@ -21,10 +27,16 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  },args:[args]}))[0].result,{tabId,selector,property});
  const wait=async predicate=>{const end=Date.now()+20000;let info;while(Date.now()<end){info=await inspect();if(predicate(info))return info;await page.waitForTimeout(40);}await page.screenshot({path:'test-results/floating-failure.png'});const title=await worker.evaluate(tabId=>chrome.action.getTitle({tabId}),tabId);throw new Error('Floating panel did not settle: '+JSON.stringify({info,title}));};
  const click=async selector=>page.mouse.click(...Object.values(await inspect(selector,'point')));
+ const waitMode=mode=>worker.evaluate(async expected=>{const end=Date.now()+5000;while(Date.now()<end){if((await chrome.storage.local.get('panelMode')).panelMode===expected)return;await new Promise(resolve=>setTimeout(resolve,20));}throw new Error('Panel mode was not saved: '+expected);},mode);
  const choose=async family=>{await click('#search');await page.keyboard.press('ControlOrMeta+A');await page.keyboard.type(family);await click(`.result[data-family="${family}"]`);await wait(info=>info && !info.editing && !info.loading);};
  const width=await page.evaluate(()=>innerWidth);
  await trigger();
  tabId=await worker.evaluate(async url=>(await chrome.tabs.query({})).find(tab=>tab.url===url).id,page.url());
+ let docked=await nativePanel();await docked.wait("!document.getElementById('view-main').hidden");
+ await docked.click('#mode-toggle');await wait(info=>info && !info.hidden && !info.picking);
+ await waitMode('floating');
+ assert.equal(await inspect('.panel','text').then(text=>text.includes('Notes') || text.includes('Origin is the first CSS family')),false);
+ await click('.pair-source .pair-edit');
  await wait(info=>info?.picking);
  assert.equal(await page.evaluate(()=>innerWidth),width);
  assert.equal(await page.locator('[data-font-swap-panel]').count(),1);
@@ -57,6 +69,23 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await page.setViewportSize({width:360,height:640});after=await wait(info=>info && info.left>=8 && info.right<=352 && info.bottom<=632);assert.equal(await inspect('.panel','overflow'),false);
  await page.screenshot({path:'test-results/floating-narrow.png'});await page.setViewportSize({width:1280,height:900});
  passed('floating panel supports multiple swaps, pointer dragging, keyboard movement and viewport clamping');
+ const fontBeforeDock=await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),genericBeforeDock=await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily);
+ await click('#another');await wait(info=>info?.picking);await click('#mode-toggle');
+ docked=await nativePanel();await docked.wait("document.querySelectorAll('.pair').length===2 && document.getElementById('picking').hidden");
+ await wait(info=>info?.hidden);assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
+ assert.equal(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),fontBeforeDock);
+ assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),genericBeforeDock);
+ await waitMode('sidepanel');
+ assert.equal(await docked.evaluate("!!document.getElementById('warnings') || document.body.textContent.includes('Origin is the first CSS family')"),false);
+ // Exercise the pre-Chrome 141 close fallback too.
+ await worker.evaluate(()=>{globalThis.__sidePanelClose=chrome.sidePanel.close;chrome.sidePanel.close=undefined;});
+ await docked.click('#mode-toggle');await wait(info=>info && !info.hidden && info.rows===2 && !info.picking);
+ await worker.evaluate(()=>{chrome.sidePanel.close=globalThis.__sidePanelClose;});
+ assert.equal(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),fontBeforeDock);
+ assert.equal(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),genericBeforeDock);
+ await waitMode('floating');
+ assert.equal((await cdp.send('Target.getTargets')).targetInfos.some(t=>t.url===`chrome-extension://${id}/sidepanel.html`),false);
+ passed('one extension switches both ways, preserves multiple swaps, cancels picking and removes Notes; older close fallback works');
  await click('#another');await wait(info=>info?.picking);
  const uiPoint=await inspect('h1','point');await page.mouse.move(uiPoint.x,uiPoint.y);
  assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);
@@ -76,5 +105,18 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  const light=(await inspect()).background;await page.emulateMedia({colorScheme:'dark'});assert.notEqual((await inspect()).background,light);await page.screenshot({path:'test-results/floating-dark.png'});
  await click('#undo');await click('#close-panel');
  passed('floating controls and real font swaps work with frame-src none, style-src none and Trusted Types restrictions');
+ await page.close();await cdp.detach();
+}
+
+export async function testRememberedMode(context,fixtureURL,passed) {
+ const worker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+ const id=new URL(worker.url()).host,cdp=await context.browser().newBrowserCDPSession();
+ assert.equal(await worker.evaluate(async()=> (await chrome.storage.local.get('panelMode')).panelMode),'floating');
+ const page=await context.newPage();await page.goto(fixtureURL);await page.bringToFront();
+ const targets=await cdp.send('Target.getTargets',{filter:[{}]});
+ await cdp.send('Extensions.triggerAction',{id,targetId:targets.targetInfos.find(t=>t.type==='tab'&&t.url===page.url()).targetId});
+ await page.waitForFunction(()=>document.querySelector('[data-font-swap-panel]')?.getBoundingClientRect().width>0);
+ assert.equal((await cdp.send('Target.getTargets')).targetInfos.some(t=>t.url===`chrome-extension://${id}/sidepanel.html`),false);
+ passed('toolbar remembers floating mode after a browser restart in the same extension profile');
  await page.close();await cdp.detach();
 }

@@ -1,10 +1,10 @@
 # SwapFont
 
-Private Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly. A native side panel keeps the controls beside the website.
+Private Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly.
 
-A separate **SwapFont Floating** build puts the same controls in a draggable panel over the page. It starts in the top-right, preserves the website's width, and has a close button. Closing cancels picking and keeps the current swaps; the toolbar icon reopens the panel. Drag the header, or focus its grip and use arrow keys to move it.
+One extension includes a native side panel and a draggable floating panel. Use the header icon to **Float on page** or **Dock to side panel**. Switching cancels picking, preserves active font swaps and remembers your preferred mode. New installs start in the side panel.
 
-Build it with `npm run build:floating`, then load `dist/floating-extension` through Chrome's **Load unpacked**. The regular `extension` folder remains the sidebar build. Packaging produces a ZIP for each version. The floating build uses the existing activeTab permission and does not request sidePanel or permanent website access.
+The floating panel starts in the top-right and preserves the website's width. Closing cancels picking and keeps current swaps; the toolbar reopens it. Drag the header, or focus its grip and use arrow keys to move it. Notes and the repeated CSS-family explanation are removed from both modes.
 
 ## Install locally
 
@@ -38,7 +38,7 @@ The source is the first computed CSS family. Canvas comparison, inspired by What
 
 Images, canvas text, PDFs, SVG text, browser pages and protected Chrome Web Store pages are excluded. Known icon fonts and private-use characters are protected. Native browser controls, generated pseudo-element text, unusual font aliases and sites that continuously rewrite styles may need manual inspection. Scanning stops after 30,000 elements. A single font download is limited to 32 MB.
 
-Font size, requested weight, style and fallback stack remain in place. Different metrics can change wrapping and layout. A destination may lack a requested weight or language's glyphs; Chrome can synthesize a style or use a fallback. Missing weights produce a warning. Google Fonts does not guarantee script coverage.
+Font size, requested weight, style and fallback stack remain in place. Different metrics can change wrapping and layout. A destination may lack a requested weight or language's glyphs; Chrome can synthesize a style or use a fallback. Missing weights are recorded internally. Google Fonts does not guarantee script coverage.
 
 Several font pairs can be active in the current page session. Pairs match the original CSS family, so swaps do not cascade into each other. Reloading the page clears them; saved site rules are not part of this version. A picked element replaced by a website must be picked again. Shadow roots attached later to an existing host may also need a fresh pick. Cross-origin frames require their own permission and are left unchanged when inaccessible. Picking a destination is limited to the origin's document.
 
@@ -76,7 +76,7 @@ To refresh the bundled font catalog, run `npm run catalog`. Validate the changed
 - `font-utils.js` parses CSS families and estimates detection confidence.
 - `fonts.js` loads Google font faces and caches downloads.
 - `sidepanel.html`, `.css` and `.js` contain the UI. Claude simplified the panel against `UI-CONTRACT.md`.
-- `floating.js` mounts those same controls in a closed shadow root. Constructed stylesheets isolate their appearance without an iframe, and the picker excludes the entire panel. `scripts/build-floating.mjs` creates its manifest variant.
+- `floating.js` mounts those same controls in a closed shadow root. Constructed stylesheets isolate their appearance without an iframe, and the picker excludes the entire panel. The same manifest and ZIP include both modes.
 
 Shadow-root text uses inline overrides because testing in Chrome 152 found stale computed styles after removing USER stylesheets that matched shadow elements. Shadow elements are excluded from those stylesheets. This is an observed browser behavior, not a claim about every Chrome version.
 
