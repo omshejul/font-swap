@@ -56,6 +56,18 @@ Checked the installed unpacked v0.2.0 extension through Dia's native UI on 8 Oct
 
 The user's existing extensions stayed installed and enabled. The manual test used the user's Dia profile; automated tests used isolated profiles.
 
+## Manual Dia checks for v0.2.1
+
+Reloaded the installed extension to v0.2.1 and tested https://www.iana.org/domains/reserved through Dia's native UI on 8 October 2026.
+
+- Picked Noto, searched Lora, and clicked the result. The page changed immediately.
+- Opened and closed the saved row. Its editor expanded inside the row, and the Lora rendering and saved pair remained.
+- Reopened the row, searched Inter, and pressed Enter. The same pair changed to Inter.
+- Added IBM Plex Mono to Roboto Mono. Switching accordion rows kept both swaps active and showed one editor at a time.
+- Used the eyedropper page picker to change the second destination to Inter from the heading.
+- Removed only the second pair, leaving Noto to Inter. Undo all restored the test page. Closed the test tab and restored the user's original Poppins source selection on their AICamp page.
+- Visually confirmed the search icon, Search Google Fonts field, down arrow between picks, and eyedropper to the left of Pick from page.
+
 ## In-app browser limitation
 
 The Codex in-app browser's control policy rejected chrome://extensions because only HTTP and HTTPS navigation is allowed. Extension installation and native side-panel end-to-end testing there could not be completed. No workaround was attempted. Dia and Chrome test success does not establish in-app compatibility.
@@ -70,7 +82,7 @@ These results cover the listed cases on the tested browsers. They do not establi
 
 ## Search and accordion in v0.2.1
 
-The second pick uses a search icon, Search Google Fonts label and placeholder, a filled background, and native search input. Clicking the row focuses the field. The actual native Chrome panel was visually checked at 320px in light and dark themes. All 34 browser checks and five unit tests passed again. Saved pairs expand the two-pick editor inside their row, with one row open at a time. Opening, closing and switching rows preserves the applied fonts. A down arrow connects the two picks. The × button removes a pair independently. Pick from page has a decorative eyedropper icon to its left. The Dia manual checks above refer to v0.2.0; concurrent user input prevented repeating them for this visual patch.
+The second pick uses a search icon, Search Google Fonts label and placeholder, a filled background, and native search input. Clicking the row focuses the field. The actual native Chrome panel was visually checked at 320px in light and dark themes. All 34 browser checks and five unit tests passed again. Saved pairs expand the two-pick editor inside their row, with one row open at a time. Opening, closing and switching rows preserves the applied fonts. A down arrow connects the two picks. The × button removes a pair independently. Pick from page has a decorative eyedropper icon to its left. The v0.2.1 changes also passed the manual Dia checks recorded above.
 
 ![Search field in dark theme](search-dark.png)
 
