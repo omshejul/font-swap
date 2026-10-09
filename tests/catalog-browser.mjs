@@ -75,6 +75,10 @@ export async function testCatalogBrowser(context,worker,fixtureURL,passed) {
   const until=Date.now()+5000;while(Date.now()<until){if(globalThis.__catalogBrowser.requests.length===expected)return;await new Promise(resolve=>setTimeout(resolve,20));}
   throw new Error('Expected catalog request was not started');
  },expected);
+ const waitMode=mode=>worker.evaluate(async mode=>{
+  const until=Date.now()+5000;while(Date.now()<until){if((await chrome.storage.local.get('panelMode')).panelMode===mode)return;await new Promise(resolve=>setTimeout(resolve,20));}
+  throw new Error(`Catalog panel mode did not settle: ${mode}`);
+ },mode);
  const release=()=>worker.evaluate(()=>{globalThis.__catalogBrowser.release();globalThis.__catalogBrowser.payload=null;});
  const nativeSearch=async(panel,text)=>{
   await panel.wait("!document.getElementById('steps').hidden && !document.getElementById('search').disabled");
@@ -87,11 +91,23 @@ export async function testCatalogBrowser(context,worker,fixtureURL,passed) {
  const floating=async(selector='')=>worker.evaluate(async({tabId,selector})=>(await chrome.scripting.executeScript({target:{tabId},func:selector=>{
   const root=globalThis.__fontSwapPanelRoot;if(!root)return null;
   const element=selector?root.querySelector(selector):root.host,r=element?.getBoundingClientRect();
-  return {visible:!!root.host.getBoundingClientRect().width,query:root.getElementById('search').value,focus:root.activeElement?.id,active:root.querySelector('.result[aria-selected=true]')?.dataset.family,expanded:[...root.querySelectorAll('.pair-edit[aria-expanded=true]')].map(button=>button.id),destinations:[...root.querySelectorAll('.pair-to')].map(element=>element.textContent),editing:!root.getElementById('steps').hidden,picking:!!root.getElementById('view-main').dataset.picking,loading:root.getElementById('note').classList.contains('is-loading'),result:selector?.startsWith('.result')?element?.dataset.family:null,point:r?{x:r.x+r.width/2,y:r.y+r.height/2}:null};
+  return {visible:!!root.host.getBoundingClientRect().width,mainVisible:!root.getElementById('view-main').hidden,busy:root.getElementById('view-main').inert,searchDisabled:root.getElementById('search').disabled,query:root.getElementById('search').value,focus:root.activeElement?.id,active:root.querySelector('.result[aria-selected=true]')?.dataset.family,expanded:[...root.querySelectorAll('.pair-edit[aria-expanded=true]')].map(button=>button.id),destinations:[...root.querySelectorAll('.pair-to')].map(element=>element.textContent),editing:!root.getElementById('steps').hidden,picking:!!root.getElementById('view-main').dataset.picking,loading:root.getElementById('note').classList.contains('is-loading'),result:selector?.startsWith('.result')?element?.dataset.family:null,available:!!r?.width&&!!r?.height&&!element.disabled&&!element.hidden,point:r?{x:r.x+r.width/2,y:r.y+r.height/2}:null};
  },args:[selector]}))[0].result,{tabId,selector});
  const waitFloating=async predicate=>{const until=Date.now()+15000;let result;while(Date.now()<until){result=await floating();if(predicate(result))return result;await page.waitForTimeout(40);}throw new Error('Catalog floating panel did not settle: '+JSON.stringify(result));};
- const floatingClick=async selector=>{const info=await floating(selector);assert(info?.point,`Missing floating ${selector}`);await page.mouse.click(info.point.x,info.point.y);};
- const floatingSearch=async text=>{await floatingClick('#search');await page.keyboard.press('ControlOrMeta+A');await page.keyboard.type(text);};
+ const floatingClick=async selector=>{
+  const point=await worker.evaluate(async({tabId,selector})=>(await chrome.scripting.executeScript({target:{tabId},func:async selector=>{
+   const root=globalThis.__fontSwapPanelRoot;let previous='',stable=0;
+   for(let frame=0;frame<60;frame++){
+    await new Promise(requestAnimationFrame);const element=root.querySelector(selector),r=element?.getBoundingClientRect();
+    if(!r?.width||!r.height||element.disabled||element.hidden||!root.host.getBoundingClientRect().width){stable=0;continue;}
+    const key=[r.x,r.y,r.width,r.height].join(',');stable=key===previous?stable+1:0;previous=key;
+    if(stable===3)return{x:r.x+r.width/2,y:r.y+r.height/2};
+   }
+   throw new Error(`Floating control did not settle: ${selector}`);
+  },args:[selector]}))[0].result,{tabId,selector});
+  await page.mouse.click(point.x,point.y);
+ };
+ const floatingSearch=async text=>{await waitFloating(info=>info?.editing&&!info.loading&&!info.searchDisabled&&!info.busy);await floatingClick('#search');await page.keyboard.press('ControlOrMeta+A');await page.keyboard.type(text);};
  const waitFloatingResult=async family=>{for(let i=0;i<100;i++){if((await floating(`.result[data-family="${family}"]`))?.result===family)return;await page.waitForTimeout(40);}throw new Error(`Floating panel did not adopt ${family}`);};
  try {
   await worker.evaluate(async endpoint=>{
@@ -128,7 +144,7 @@ export async function testCatalogBrowser(context,worker,fixtureURL,passed) {
   await worker.evaluate(({key,saved})=>chrome.storage.local.set({[key]:saved}),{key:savedKey,saved});
   await delayRefresh('Inter Catalog Native');await trigger();await waitRequest(2);
   await docked.click('#undo');await docked.wait("!!document.querySelector('.pair-source')");
-  await docked.click('.pair-source .pair-edit');await page.locator('#body').hover();
+  await docked.click('.pair-source .pair-edit');await docked.wait("document.getElementById('view-main').dataset.picking==='source'");await page.locator('#body').hover();
   assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Arial');
   await page.locator('#body').click();await docked.wait("document.querySelector('.pair-pending') && !document.getElementById('search').disabled");
   await nativeSearch(docked,'Inter');await docked.click('.result[data-family="Inter"]');
@@ -145,8 +161,9 @@ export async function testCatalogBrowser(context,worker,fixtureURL,passed) {
   await worker.evaluate(async tabId=>chrome.sidePanel.close({windowId:(await chrome.tabs.get(tabId)).windowId}),tabId);
   for(let i=0;i<100;i++){if(!(await cdp.send('Target.getTargets')).targetInfos.some(target=>target.url===`chrome-extension://${id}/sidepanel.html`))break;await page.waitForTimeout(40);}
   await trigger();docked=await nativePanel();await docked.wait("document.querySelector('.pair-to')?.textContent==='Inter'");
-  await docked.click('#mode-toggle');await waitFloating(info=>info?.visible);
-  await floatingClick('.pair-edit');await floatingSearch('inter');await waitFloatingResult('Inter Catalog Native');
+  await docked.click('#mode-toggle');await waitMode('floating');await waitFloating(info=>info?.visible&&info.mainVisible&&!info.busy&&info.destinations.includes('Inter'));
+  if(!(await floating()).editing)await floatingClick('.pair-edit');
+  await floatingSearch('inter');await waitFloatingResult('Inter Catalog Native');
   assert.equal(await count(),2);
   await delayRefresh('Inter Catalog Floating');await floatingClick('#close-panel');await trigger();await waitRequest(3);
   await waitFloating(info=>info?.visible);
@@ -164,12 +181,45 @@ export async function testCatalogBrowser(context,worker,fixtureURL,passed) {
   assert.deepEqual(floatingAfter,floatingBefore);
   await floatingClick('#close-panel');await trigger();await waitFloating(info=>info?.visible);
   await floatingClick('#mode-toggle');docked=await nativePanel();await docked.wait("document.querySelector('.pair-to')?.textContent==='Inter'");
-  await docked.click('.pair-edit');await nativeSearch(docked,'inter');
+  if(await docked.evaluate("document.getElementById('steps').hidden"))await docked.click('.pair-edit');
+  await nativeSearch(docked,'inter');
   await docked.wait(`!!document.querySelector('.result[data-family="Inter Catalog Floating"]')`);
   assert.equal(await count(),3);
   assert.equal(await worker.evaluate(()=>globalThis.__catalogBrowser.permissions.length),0);
   assert.deepEqual(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],savedKey),saved);
   passed('floating picking and swapping work during delayed refresh; results retain editor state, and fresh catalog survives reopen and both layout switches without repeat requests');
+  await docked.click('#mode-toggle');await waitMode('floating');
+  await waitFloating(info=>info?.visible&&info.mainVisible&&!info.busy);
+  if(!(await floating()).editing)await floatingClick('.pair-edit');
+  await floatingSearch('inter');await waitFloatingResult('Inter Catalog Floating');
+  const beforeRestart=await floating();
+  await worker.evaluate(async({week,hour})=>{
+   const test=globalThis.__catalogBrowser;globalThis.fetch=test.original;chrome.permissions.request=test.permission;
+   await chrome.storage.local.set({googleFontCatalogFetchedAt:Date.now()-week,googleFontCatalogLastAttemptAt:Date.now()-hour-1});
+  },{week:WEEK,hour:HOUR});
+  const sw=await context.newCDPSession(page);let status='';
+  sw.on('ServiceWorker.workerVersionUpdated',event=>{const version=event.versions.find(version=>version.scriptURL===worker.url());if(version)status=version.runningStatus;});
+  await sw.send('ServiceWorker.enable');await sw.send('ServiceWorker.stopAllWorkers');
+  for(let i=0;i<100&&status!=='stopped';i++)await page.waitForTimeout(40);
+  assert.equal(status,'stopped','Catalog worker did not actually stop');
+  const other=await context.newPage();
+  try {
+   await other.goto(`${fixtureURL}/catalog-restart`);await other.bringToFront();
+   const otherTarget=(await cdp.send('Target.getTargets',{filter:[{}]})).targetInfos.find(target=>target.type==='tab'&&target.url===other.url());
+   await cdp.send('Extensions.triggerAction',{id,targetId:otherTarget.targetId});
+   assert.equal(await worker.evaluate(()=>typeof globalThis.__catalogBrowser),'undefined','Catalog worker globals survived restart');
+   await worker.evaluate(async week=>{
+    const until=Date.now()+25000;while(Date.now()<until){const stored=await chrome.storage.local.get(['googleFontCatalog','googleFontCatalogFetchedAt']);if(stored.googleFontCatalogFetchedAt>Date.now()-week&&!stored.googleFontCatalog.families.some(font=>font.family==='Inter Catalog Floating'))return;await new Promise(resolve=>setTimeout(resolve,40));}
+    throw new Error('Restarted worker did not refresh its persisted stale catalog');
+   },WEEK);
+   for(let i=0;i<100;i++){if(!(await floating('.result[data-family="Inter Catalog Floating"]')).result)break;await page.waitForTimeout(40);}
+   assert.equal((await floating('.result[data-family="Inter Catalog Floating"]')).result,undefined);
+   const afterRestart=await floating();
+   for(const key of ['query','active','expanded','destinations'])assert.deepEqual(afterRestart[key],beforeRestart[key],`Floating ${key} changed after worker restart`);
+   assert.deepEqual(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],savedKey),saved);
+   assert.equal(await worker.evaluate(()=>chrome.permissions.contains({origins:['https://omshejul.com/*']})),false);
+   passed('after an actual service-worker restart, opening another tab refreshes the persisted cache and updates an already-mounted floating panel without resetting its editor or saved settings');
+  } finally {await other.close();await sw.detach();}
  } finally {
   await worker.evaluate(()=>{const test=globalThis.__catalogBrowser;if(!test)return;test.release?.();globalThis.fetch=test.original;chrome.permissions.request=test.permission;}).catch(()=>{});
   await page.close();await cdp.detach();

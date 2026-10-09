@@ -1,5 +1,13 @@
 # Verification
 
+## Weekly catalog refresh in v0.6.3
+
+Verified October 9, 2026 on Chrome for Testing 152.0.7977.75. Manifest checks, 124 unit tests, all 77 end-to-end checks and the font flicker regression passed. Both production layouts were tested with a delayed catalog response while picking, searching and swapping stayed usable. Catalog adoption preserved the query, keyboard focus, active font and accordion. An actual service-worker restart also refreshed an already-mounted floating panel in another tab.
+
+A clean production-manifest profile fetched the live endpoint with normal CORS, omitted credentials/referrer, and no optional access to omshejul.com. Deterministic tests covered seven-day freshness, daily openings, one-hour retry cooldown, concurrent requests, restart persistence, malformed/oversized/truncated metadata, storage failures and offline use. Failed refreshes retained the previous catalog and success timestamp; saved site settings stayed unchanged. Ordinary catalog reads, hover, navigation and remembered-font restoration made no refresh request.
+
+The browser suite also covered the previously unpublished feedback link, denied-site permission retry, tag filters and All tags/Clear, independent same-font swaps by tag scope, saved restoration, cursor cleanup, reduced motion, loading indicators, panel switching and undo. Disposable browsers and fixture servers were closed after testing.
+
 ## Feedback header in v0.5.6
 
 Verified October 9, 2026 on Chrome for Testing 152.0.7977.75. Manifest checks, seven unit tests, all 58 end-to-end checks and the font flicker regression passed. Feedback uses the official Material Symbols Outlined SVG, centered in the same 26x28 control as the mode button. Light and dark floating headers and the 240px side panel were visually reviewed by Codex and Claude, with no clipping or alignment changes needed.
