@@ -1,5 +1,11 @@
 # Verification
 
+## Feedback icon and copy in v0.6.4
+
+Verified October 10, 2026. The inline feedback SVG uses the exact viewBox and path from Google's Material Symbols Outlined feedback asset. Its existing 18px SVG and centered header control remain unchanged. Light side-panel and dark floating-panel screenshots show the symbol aligned with the mode control.
+
+The email starts with `Feedback:` and leaves room for bugs, suggestions or feature requests. Recipient, editable diagnostics, version, privacy exclusions and click behavior are unchanged. Both layout checks now verify the Material Symbols viewBox and generic prompt. Manifest checks, 124 unit tests, all 77 browser checks and the flicker regression passed. No email was sent during testing.
+
 ## Weekly catalog refresh in v0.6.3
 
 Verified October 9, 2026 on Chrome for Testing 152.0.7977.75. Manifest checks, 124 unit tests, all 77 end-to-end checks and the font flicker regression passed. Both production layouts were tested with a delayed catalog response while picking, searching and swapping stayed usable. Catalog adoption preserved the query, keyboard focus, active font and accordion. An actual service-worker restart also refreshed an already-mounted floating panel in another tab.
