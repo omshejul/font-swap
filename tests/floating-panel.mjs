@@ -21,6 +21,7 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
   if(property==='point'){const r=element.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};}
   if(property==='text')return element.textContent;
   if(property==='font')return getComputedStyle(element).fontFamily;
+  if(property==='tags'){const popup=root.getElementById('tag-filter'),r=popup.getBoundingClientRect();return {open:popup.matches(':popover-open'),ready:!root.getElementById('tag-search').disabled,all:root.getElementById('all-tags').getAttribute('aria-pressed')==='true',summary:!!root.querySelector('.tag-summary'),focus:root.activeElement?.dataset.tag,focusFilter:root.activeElement?.classList.contains('pair-filter'),options:root.querySelectorAll('.tag-option').length,checked:[...root.querySelectorAll('.tag-option input:checked')].map(input=>input.dataset.tag),fits:r.left>=0 && r.right<=innerWidth && r.bottom<=innerHeight,footer:/matching elements|Updates live/.test(popup.textContent),background:getComputedStyle(popup).backgroundColor};}
   if(property==='overflow')return element.scrollWidth>element.clientWidth;
   if(property==='feedback'){const link=root.getElementById('feedback'),url=new URL(link.href),title=root.querySelector('h1');return {recipient:url.pathname,body:url.searchParams.get('body'),subject:url.searchParams.get('subject'),titleFits:title.scrollWidth<=title.clientWidth,focus:root.activeElement===link && getComputedStyle(link).outlineStyle!=='none'};}
   if(property==='footer'){const link=root.querySelector('.browse-fonts'),logo=link.querySelector('canvas'),r=link.getBoundingClientRect();return{href:link.href,target:link.target,rel:link.rel,svg:!!link.querySelector('.external-link'),painted:!!logo?.getContext('2d').getImageData(0,0,logo.width,logo.height).data.some((v,i)=>i%4===3&&v>0),visible:r.bottom<=host.getBoundingClientRect().bottom};}
@@ -63,6 +64,27 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await click('.pair-edit');await wait(info=>info?.editing);await click('.pair-edit');await wait(info=>!info.editing);
  assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  passed('floating panel loads fonts with a spinner and keeps saved swaps when its accordion opens or closes');
+ const tagPanelStart=await inspect();
+ const waitTags=async predicate=>{const end=Date.now()+10000;while(Date.now()<end){const tags=await inspect('#tag-filter','tags');if(predicate(tags))return tags;await page.waitForTimeout(30);}throw new Error('Floating tag filter did not settle: '+JSON.stringify(await inspect('#tag-filter','tags')));};
+ await click('.pair-filter');await waitTags(tags=>tags.open && tags.ready);
+ assert((await inspect('#tag-filter','tags')).all);assert.equal((await inspect('#tag-filter','tags')).footer,false);
+ await click('.tag-option input[data-tag="h1"]');
+ await page.waitForFunction(()=>!getComputedStyle(document.querySelector('#heading')).fontFamily.includes('FontSwap_'));
+ assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ assert.equal((await inspect('#tag-filter','tags')).focus,'h1');
+ await click('#tag-search');await page.keyboard.type('heading');await waitTags(tags=>tags.options===1);
+ await click('.tag-option input[data-tag="h1"]');await page.keyboard.press('Space');await page.keyboard.press('Space');
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#heading')).fontFamily.includes('FontSwap_'));
+ await click('#all-tags');await waitTags(tags=>tags.all && !tags.summary);
+ await page.emulateMedia({colorScheme:'dark'});await page.screenshot({path:'test-results/tag-filter-floating-dark.png'});
+ await page.emulateMedia({colorScheme:'light'});await page.screenshot({path:'test-results/tag-filter-floating-light.png'});
+ await page.setViewportSize({width:272,height:640});await waitTags(tags=>tags.fits);
+ await page.keyboard.press('Escape');await waitTags(tags=>!tags.open && tags.focusFilter);
+ await click('.pair-filter');await waitTags(tags=>tags.open && tags.ready);await click('#close-panel');await waitTags(tags=>!tags.open);
+ await trigger();await wait(info=>info && !info.hidden);await page.setViewportSize({width:1280,height:720});
+ const tagPanelEnd=await inspect(),tagGrip=await inspect('#move-panel','point');
+ await page.mouse.move(tagGrip.x,tagGrip.y);await page.mouse.down();await page.mouse.move(tagGrip.x+tagPanelStart.left-tagPanelEnd.left,tagGrip.y+tagPanelStart.top-tagPanelEnd.top,{steps:3});await page.mouse.up();
+ passed('floating tag popover handles search, rapid toggles, keyboard dismissal, narrow layouts and panel closure in both themes');
  await click('#another');await wait(info=>info?.picking);await page.locator('#generic').click();await wait(info=>info?.rows===2 && info.editing);await choose('Lora');
  assert.equal((await inspect()).rows,2);assert.match(await page.locator('#generic').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  await click('.pair:nth-child(2) .pair-edit');await wait(info=>info?.editing);await click('#pick-dest');await wait(info=>info?.picking);

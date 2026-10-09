@@ -26,3 +26,10 @@ test('page font destinations preserve generic keyword semantics',()=>{
  assert.equal(U.familyCSS('System-UI'),'system-ui');
  assert.equal(U.familyCSS('Inter'),'\"Inter\"');
 });
+
+test('tag scopes keep old swaps unrestricted, normalize custom tags and reject selectors',()=>{
+ assert.equal(U.normalizeTags(undefined),null);
+ assert.deepEqual(U.normalizeTags(['P','h1','p','my-label']),['h1','my-label','p']);
+ assert.deepEqual(U.normalizeTags([]),[]);
+ for (const tags of ['p', ['p, a'], ['*'], [null], Array(101).fill('p')]) assert.throws(()=>U.normalizeTags(tags));
+});

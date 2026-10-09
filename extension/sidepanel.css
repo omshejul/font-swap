@@ -366,6 +366,7 @@ h1 img {
 
 .pair-header {
   display: flex;
+  align-items: flex-start;
   min-width: 0;
 }
 
@@ -483,6 +484,54 @@ h1 img {
 .pair-remove:hover {
   color: var(--danger);
 }
+
+/* Advanced scope stays behind a per-swap icon. The native popover escapes scroll clipping. */
+.pair-filter {
+  align-self: flex-start;
+  margin: 8px 0 0 4px;
+  width: 26px;
+  height: 28px;
+}
+.pair-filter[aria-pressed="true"], .pair-filter[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.tag-summary { display: flex; align-items: center; gap: 5px; padding: 0 12px 6px; color: var(--accent); font-size: 11px; overflow-wrap: anywhere; }
+.tag-summary svg { flex: none; }
+.tag-filter {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 10px;
+  width: 254px;
+  max-height: calc(100dvh - 16px);
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-shadow: 0 8px 24px #0004;
+  scrollbar-width: thin;
+}
+.tag-filter::backdrop { background: transparent; }
+.tag-filter[data-below="true"]::before { content: ''; position: absolute; top: -5px; left: var(--tag-arrow-left); width: 8px; height: 8px; transform: rotate(45deg); border-left: 1px solid var(--border); border-top: 1px solid var(--border); background: var(--surface); }
+.tag-filter-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.tag-filter-header h2 { margin: 0; font-size: 12px; font-weight: 600; }
+#all-tags { padding: 2px 4px; border: 0; border-radius: 4px; background: none; color: var(--muted); font-size: 11px; cursor: pointer; }
+#all-tags:hover { background: var(--header-hover); color: var(--text); }
+#all-tags[aria-pressed="true"] { color: var(--accent); }
+.tag-search { display: flex; align-items: center; gap: 8px; padding: 6px 8px; min-height: 32px; border: 1px solid var(--border); border-radius: 5px; color: var(--muted); }
+.tag-search:focus-within { border-color: var(--accent); }
+.tag-search svg { flex: none; }
+#tag-search { min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: none; color: var(--text); font-size: 12px; }
+#tag-search::placeholder { color: var(--muted); opacity: 1; }
+.tag-options { max-height: min(232px, calc(100dvh - 110px)); overflow-y: auto; margin-top: 6px; scrollbar-width: thin; scrollbar-color: var(--muted) transparent; }
+.tag-option { display: flex; align-items: center; gap: 8px; min-height: 33px; padding: 5px 6px; border-radius: 4px; cursor: pointer; }
+.tag-option:hover { background: var(--header-hover); }
+.tag-option input { flex: none; margin: 0; width: 14px; height: 14px; accent-color: var(--accent); }
+.tag-option code { flex: none; min-width: 24px; font: 11px/1.4 ui-monospace, monospace; color: var(--muted); }
+.tag-option .tag-name { min-width: 0; overflow-wrap: anywhere; }
+.tag-count { margin-left: auto; flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tag-empty { padding: 8px 6px; color: var(--muted); }
+#tag-error { margin-top: 8px; font-size: 12px; }
 
 .another {
   display: flex;

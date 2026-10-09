@@ -29,6 +29,11 @@ const els = {
   another: $('another'),
   note: $('note'),
   error: $('error'),
+  tagFilter: $('tag-filter'),
+  tagSearch: $('tag-search'),
+  tagOptions: $('tag-options'),
+  allTags: $('all-tags'),
+  tagError: $('tag-error'),
 };
 
 els.mode.title = floating ? 'Dock to side panel' : 'Float on page';
@@ -55,6 +60,22 @@ let activeIndex = -1;
 let switchingMode = false;
 let pairsSignature = '';
 let resultsSignature = '';
+let filterRule = null;
+let filterSession = 0;
+let tagChoices = [];
+let tagChoicesSignature = '';
+let tagQueue = Promise.resolve();
+const tagEdits = new Map();
+const ruleKey = rule => `${rule.frameId}:${rule.id}`;
+const tagNames = {h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',h4:'Heading 4',h5:'Heading 5',h6:'Heading 6',p:'Paragraph',a:'Link',button:'Button',span:'Inline text',li:'List item',label:'Label',blockquote:'Quote',code:'Code',pre:'Preformatted',div:'Container',td:'Table cell',th:'Table heading',summary:'Summary',figcaption:'Caption',input:'Input',textarea:'Text area'};
+
+function filterIcon(size = 16) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  for (const [name,value] of Object.entries({width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.75','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true'})) svg.setAttribute(name,value);
+  const path = document.createElementNS(svg.namespaceURI,'path');
+  path.setAttribute('d','M4 4h16l-6 7v7l-4 2v-9L4 4Z'); svg.append(path);
+  return svg;
+}
 
 function updateFeedback() {
   const manifest = chrome.runtime.getManifest();
@@ -116,6 +137,8 @@ async function connect() {
   clearTimeout(reconnectTimer);
   if (busy) { scheduleConnect(); return; }
   const epoch = ++tabEpoch;
+  closeTagFilter();
+  tagEdits.clear();
   state = null;
   busy = false;
   pending = errorText = noteText = doneKey = dismissedKey = '';
@@ -196,6 +219,10 @@ function render() {
   els.mode.disabled = blocked;
   views.main.dataset.picking = state.picking || '';
   const inline = renderPairs(rules, editing, waitingForSource);
+  if (filterRule) {
+    if (blocked || !rules.some(rule => ruleKey(rule) === ruleKey(filterRule))) closeTagFilter();
+    else { renderTagOptions(); positionTagFilter(); }
+  }
 
   // The loading row replaces the editor until the font applies or fails.
   els.steps.hidden = !editing || loadingFont;
@@ -219,7 +246,7 @@ function renderPairs(rules, editing, waitingForSource) {
   els.pairs.hidden = !rows.length;
   const openKey = editing ? sourceKey(state) : '';
   const inline = rows.some((rule) => `${rule.frameId}:${rule.source}` === openKey);
-  const signature = JSON.stringify([openKey, state.picking, rows.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination)])]);
+  const signature = JSON.stringify([openKey, state.picking, rows.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination), rule.tags])]);
   if (signature === pairsSignature) return inline;
   pairsSignature = signature;
   // Keep the single editor alive while rebuilding its accordion rows.
@@ -268,25 +295,133 @@ function renderPairs(rules, editing, waitingForSource) {
       button.dataset.ruleId = rule.id;
       button.dataset.frameId = rule.frameId;
     }
-    header.append(edit, remove);
+    header.append(edit);
+    if (!draft) {
+      const filter = Object.assign(document.createElement('button'), {type:'button',className:'icon-button pair-filter',id:`filter-${rule.frameId}-${rule.id}`,title:'Apply to tags'});
+      filter.dataset.action = 'filter'; filter.dataset.ruleId = rule.id; filter.dataset.frameId = rule.frameId;
+      filter.setAttribute('aria-label',`Apply ${to} to specific tags`);
+      filter.setAttribute('aria-haspopup','dialog'); filter.setAttribute('aria-controls','tag-filter');
+      filter.setAttribute('aria-expanded',String(Boolean(filterRule && ruleKey(filterRule) === ruleKey(rule))));
+      filter.setAttribute('aria-pressed',String(Array.isArray(rule.tags)));
+      filter.append(filterIcon()); header.append(filter);
+    }
+    header.append(remove);
     if (open) {
       if (!waiting) body.append(els.steps);
       body.append(els.note,els.error);
     }
-    item.append(header, body);
+    item.append(header);
+    if (Array.isArray(rule.tags)) {
+      const summary = Object.assign(document.createElement('div'), {className:'tag-summary'});
+      summary.append(filterIcon(12),document.createTextNode(rule.tags.join(', ') || 'No tags selected'));
+      item.append(summary);
+    }
+    item.append(body);
     return item;
   }));
   return inline;
+}
+
+// Tag choices reuse the page controller's existing scan, never page text or selectors.
+function closeTagFilter(focus = false) {
+  const button = filterRule && $(`filter-${filterRule.frameId}-${filterRule.id}`);
+  if (els.tagFilter.matches(':popover-open')) els.tagFilter.hidePopover();
+  filterRule = null; filterSession++;
+  button?.setAttribute('aria-expanded','false');
+  if (focus) button?.focus({preventScroll:true});
+}
+
+function positionTagFilter() {
+  if (!filterRule || !els.tagFilter.matches(':popover-open')) return;
+  const button = $(`filter-${filterRule.frameId}-${filterRule.id}`);
+  if (!button) return;
+  const anchor = button.getBoundingClientRect(), panel = root.querySelector('.panel').getBoundingClientRect();
+  const width = Math.min(254,panel.width - 16,innerWidth - 16);
+  els.tagFilter.style.width = `${width}px`;
+  const left = Math.max(8,Math.min(anchor.right - width,innerWidth - width - 8));
+  els.tagFilter.style.left = `${left}px`;
+  const height = els.tagFilter.getBoundingClientRect().height;
+  const top = Math.max(8,Math.min(anchor.bottom + 6,innerHeight - height - 8));
+  els.tagFilter.style.top = `${top}px`;
+  els.tagFilter.dataset.below = String(top >= anchor.bottom + 4);
+  els.tagFilter.style.setProperty('--tag-arrow-left',`${Math.max(12,Math.min(anchor.left + anchor.width / 2 - left - 4,width - 20))}px`);
+}
+
+function currentFilterTags() {
+  const edit = tagEdits.get(ruleKey(filterRule));
+  return edit ? edit.tags : state.rules.find(rule => ruleKey(rule) === ruleKey(filterRule))?.tags ?? null;
+}
+
+function renderTagOptions() {
+  if (!filterRule) return;
+  const tags = currentFilterTags(), query = els.tagSearch.value.trim().toLowerCase();
+  const choices = [...tagChoices];
+  for (const tag of tags || []) if (!choices.some(choice => choice.tag === tag)) choices.push({tag,count:0});
+  choices.sort((a,b) => {
+    const order = ['h1','h2','h3','h4','h5','h6','p','a','button','span','li'];
+    return (order.indexOf(a.tag) < 0 ? 99 : order.indexOf(a.tag)) - (order.indexOf(b.tag) < 0 ? 99 : order.indexOf(b.tag)) || a.tag.localeCompare(b.tag);
+  });
+  const visible = choices.filter(({tag}) => `${tag} ${tagNames[tag] || tag}`.toLowerCase().includes(query));
+  const signature = JSON.stringify(visible);
+  // Keep focused checkbox nodes alive across confirmed state updates.
+  if (signature !== tagChoicesSignature) {
+    tagChoicesSignature = signature;
+    els.tagOptions.replaceChildren(...visible.map(({tag,count}) => {
+      const row = Object.assign(document.createElement('label'), {className:'tag-option'});
+      const input = Object.assign(document.createElement('input'), {type:'checkbox'}); input.dataset.tag = tag;
+      input.setAttribute('aria-label',`${tag}: ${tagNames[tag] || tag}`);
+      row.append(input,Object.assign(document.createElement('code'), {textContent:tag}),Object.assign(document.createElement('span'), {className:'tag-name',textContent:tagNames[tag] || tag}),Object.assign(document.createElement('span'), {className:'tag-count',textContent:count}));
+      return row;
+    }));
+    if (!visible.length) els.tagOptions.append(Object.assign(document.createElement('p'), {className:'tag-empty',textContent:'No tags found'}));
+  }
+  for (const input of els.tagOptions.querySelectorAll('input')) input.checked = tags == null || tags.includes(input.dataset.tag);
+  els.allTags.setAttribute('aria-pressed',String(tags == null));
+}
+
+async function openTagFilter(rule) {
+  if (filterRule && ruleKey(filterRule) === ruleKey(rule)) { closeTagFilter(); return; }
+  closeTagFilter(); filterRule = rule;
+  const session = ++filterSession;
+  tagChoices = []; tagChoicesSignature = '';
+  els.tagSearch.value = ''; els.tagError.hidden = true;
+  els.tagSearch.disabled = els.allTags.disabled = true;
+  els.tagOptions.replaceChildren(Object.assign(document.createElement('p'), {className:'tag-empty',textContent:'Loading tags…'}));
+  $(`filter-${rule.frameId}-${rule.id}`).setAttribute('aria-expanded','true');
+  els.tagFilter.showPopover(); positionTagFilter();
+  const response = await send('tag-options',{ruleId:rule.id,frameId:rule.frameId});
+  if (session !== filterSession) return;
+  els.tagSearch.disabled = els.allTags.disabled = false;
+  tagChoices = response.tags || [];
+  if (!response.ok) { els.tagError.textContent = describeError(response.error); els.tagError.hidden = false; }
+  renderTagOptions(); positionTagFilter(); els.tagSearch.focus({preventScroll:true});
+}
+
+function updateTags(tags) {
+  const target = filterRule, key = ruleKey(target), epoch = tabEpoch, edit = {tags};
+  tagEdits.set(key,edit); els.tagError.hidden = true; renderTagOptions();
+  tagQueue = tagQueue.then(async () => {
+    if (epoch !== tabEpoch || tagEdits.get(key) !== edit) return;
+    const response = await send('tags',{ruleId:target.id,frameId:target.frameId,tags});
+    if (tagEdits.get(key) === edit) tagEdits.delete(key);
+    if (response.stale) return;
+    if (response.ok && response.state) setState(response.state);
+    else if (filterRule && ruleKey(filterRule) === key) {
+      els.tagError.textContent = describeError(response.error); els.tagError.hidden = false; renderTagOptions();
+    }
+  });
 }
 
 // Actions
 
 async function run(action, payload = {}, family = '') {
   if (busy || !state || (state.status === 'Loading font' && !state.error)) return false;
+  closeTagFilter();
   busy = true;
   pending = family;
   errorText = noteText = '';
   render();
+  await tagQueue;
   const response = await send(action, payload);
   if (response.stale) return false;
   busy = false;
@@ -428,6 +563,7 @@ els.pairs.addEventListener('click', async (event) => {
   const rule = state.rules.find((entry) => String(entry.id) === payload.ruleId && entry.frameId === payload.frameId);
   if (busy || !rule) return;
   payload.ruleId = rule.id;
+  if (button.dataset.action === 'filter') { openTagFilter(rule); return; }
   if (button.dataset.action === 'select') {
     if (button.getAttribute('aria-expanded') === 'true') {
       if (state.picking) await run('cancel');
@@ -448,6 +584,24 @@ els.pairs.addEventListener('click', async (event) => {
     (els.another.hidden ? els.pairs.querySelector('[data-action="pick-source"]') : els.another)?.focus();
   }
 });
+
+els.tagSearch.addEventListener('input',() => { renderTagOptions(); positionTagFilter(); });
+els.allTags.addEventListener('click',() => updateTags(null));
+els.tagOptions.addEventListener('change',event => {
+  const tag = event.target.dataset.tag;
+  if (!tag || !filterRule) return;
+  const tags = new Set(currentFilterTags() ?? tagChoices.map(choice => choice.tag));
+  if (event.target.checked) tags.add(tag); else tags.delete(tag);
+  updateTags([...tags].sort());
+});
+els.tagFilter.addEventListener('beforetoggle',event => {
+  if (event.newState !== 'closed') return;
+  if (filterRule) $(`filter-${filterRule.frameId}-${filterRule.id}`)?.setAttribute('aria-expanded','false');
+  filterRule = null; filterSession++;
+});
+addEventListener('resize',positionTagFilter);
+root.addEventListener('scroll',positionTagFilter,true);
+root.addEventListener('click',event => { if (event.target.closest('#close-panel')) closeTagFilter(); });
 
 els.search.addEventListener('focus', loadCatalog);
 els.search.addEventListener('input', () => {
@@ -476,6 +630,7 @@ els.results.addEventListener('click', (event) => {
 });
 
 chrome.runtime.onMessage.addListener((message) => {
+  if (floating && message?.type === 'HIDE_FLOATING') closeTagFilter();
   if (!message || message.type !== 'STATE_CHANGED' || message.tabId !== tabId || !message.state) return;
   if (busy) return; // the pending action returns newer state
   setState(message.state);
@@ -490,6 +645,7 @@ if (!floating) {
   document.addEventListener('visibilitychange', () => { if (document.hidden) cancelPicking(); else switchingMode = false; });
 }
 (floating ? root : document).addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && filterRule) { event.preventDefault(); closeTagFilter(true); return; }
   if (event.key === 'Escape' && state?.picking) {
     event.preventDefault();
     run('cancel');

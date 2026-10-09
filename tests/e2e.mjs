@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {testSavedSites,testSavedSiteRestart} from './remember-sites.mjs';
 import {testNativePanel} from './native-panel.mjs';
 import {testFloatingPanel,testRememberedMode} from './floating-panel.mjs';
+import {testTagFilters} from './tag-filters.mjs';
 const temp=await mkdtemp(path.join(tmpdir(),'font-swap-e2e-'));
 const extension=path.join(temp,'extension'); await cp('extension',extension,{recursive:true});
 const manifest=JSON.parse(await readFile(path.join(extension,'manifest.json')));
@@ -107,6 +108,7 @@ try {
  await page.goto(`http://127.0.0.1:${port}/strict`);await ok('connect');await ok('pick',{mode:'source'});await page.locator('#body').click();await ok('preview',{destination:{kind:'google',family:'Lora'},scope:'all'});assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);passed('strict website CSP with font-src none supports worker-loaded FontFace');
  await ok('pick',{mode:'destination'});await page.frameLocator('#cross').locator('#frame-text').click();assert.equal((await ok('state')).state.frameId,0);await ok('cancel');passed('destination picker stays in origin document');
  await ok('pick',{mode:'source'});await page.frameLocator('#cross').locator('#frame-text').click();result=await waitState(s=>s.frameId!==0);assert.notEqual(result.state.frameId,0);assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);passed('moving origin to another frame preserves previous swaps');await ok('preview',{destination:{kind:'google',family:'Lora'},scope:'all'});assert.match(await page.frameLocator('#cross').locator('#frame-text').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);assert.equal((await ok('state')).state.rules.length,2);await ok('undo');assert.doesNotMatch(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);assert.doesNotMatch(await page.frameLocator('#cross').locator('#frame-text').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);passed('Undo all restores simultaneous swaps across permitted frames');
+ await testTagFilters(page,ok,`http://127.0.0.1:${port}`,passed);
  await testSavedSites(context,worker,page,panel,`http://127.0.0.1:${port}`,passed);
  await page.goto('chrome://version');const blocked=await send('connect');assert.equal(blocked.ok,false);passed('restricted browser page reports unsupported action');
  await context.close();

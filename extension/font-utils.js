@@ -45,5 +45,16 @@
     return null;
   }
   const familyCSS = value => generics.has(normalize(value)) ? normalize(value) : quote(value);
-  root.FSFontUtils = {parseStack, normalize, quote, familyCSS, matches, fallback, protectedFont, estimate};
+  function normalizeTags(tags) {
+    if (tags == null) return null; // Existing and unrestricted swaps.
+    if (!Array.isArray(tags) || tags.length > 100 || tags.some(tag => typeof tag !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/i.test(tag))) throw new Error('Choose valid HTML tags.');
+    return [...new Set(tags.map(tag => tag.toLowerCase()))].sort();
+  }
+  function* ancestors(element) {
+    for (let node = element; node; node = node.parentElement || node.getRootNode().host) yield node;
+  }
+  function matchesTags(element, tags) {
+    return tags == null || [...ancestors(element)].some(node => tags.includes(node.localName));
+  }
+  root.FSFontUtils = {parseStack, normalize, quote, familyCSS, matches, fallback, protectedFont, estimate, normalizeTags, ancestors, matchesTags};
 })(globalThis);

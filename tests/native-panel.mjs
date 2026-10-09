@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {testNativeTagFilter} from './tag-filters.mjs';
 import {mkdir,writeFile} from 'node:fs/promises';
 
 export async function pagePicker(worker,page) {
@@ -127,7 +128,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await page.goto(fixtureURL);await trigger();await panel.wait("!!document.getElementById('view-main').dataset.picking");
  await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .pair-from')?.textContent==='Arial'");
  assert.equal(await panel.evaluate("!!document.getElementById('warnings') || !!document.getElementById('warning-list')"),false);
- await choose('Inter');await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting')");
+ await choose('Inter');await testNativeTagFilter(panel,page,passed);await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting')");
  assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.pair-awaiting .pair-from')).borderStyle"),'dashed');
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-from').textContent"),'Pick from page');
  await panel.click('.pair-awaiting .pair-from');assert.equal(await panel.evaluate("!document.getElementById('view-main').dataset.picking"),false);

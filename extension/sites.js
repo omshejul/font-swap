@@ -1,4 +1,4 @@
-// Saved pairs contain font names only, never picked text or DOM references.
+// Saved pairs contain font names and optional HTML tags, never text or DOM references.
 export function siteOrigin(url) {
   try { const parsed=new URL(url); return /^https?:$/.test(parsed.protocol) ? parsed.origin : ''; } catch { return ''; }
 }
@@ -9,5 +9,5 @@ export function sitePattern(origin) {
 }
 export const siteKey = origin => `site:${origin}`;
 export function savedPairs(rules) {
-  return rules.filter(rule=>rule.frameId===0 && rule.scope!=='element').map(({source,destination})=>({source,destination:{kind:destination.kind,family:destination.family}}));
+  return rules.filter(rule=>rule.frameId===0 && rule.scope!=='element').map(({source,destination,tags})=>({source,destination:{kind:destination.kind,family:destination.family},...(Array.isArray(tags)?{tags:[...tags]}:{})}));
 }

@@ -14,3 +14,11 @@ test('saved pairs exclude embedded frames, single elements, text and DOM referen
  const pair={source:'Arial',destination:{kind:'google',family:'Inter'}};
  assert.deepEqual(savedPairs([{...pair,frameId:0,scope:'all',text:'private text',element:{id:'secret'}},{...pair,frameId:5,scope:'all'},{...pair,frameId:0,scope:'element'}]),[pair]);
 });
+
+test('saved tag choices preserve an empty scope without storing page data',()=>{
+ const rule={frameId:0,scope:'all',source:'Arial',destination:{kind:'google',family:'Inter'},tags:['h1','p'],availableTags:[{tag:'p',count:34}],text:'private'};
+ const saved=savedPairs([rule])[0];
+ assert.deepEqual(saved,{source:'Arial',destination:{kind:'google',family:'Inter'},tags:['h1','p']});
+ rule.tags.push('a');assert.deepEqual(saved.tags,['h1','p']);
+ assert.deepEqual(savedPairs([{...rule,tags:[]}])[0].tags,[]);
+});

@@ -182,15 +182,16 @@ async function panel(message, permission) {
   } else if (action==='undo') {
     const results=await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'undo')));
     if(results.some(result=>result.status==='rejected')) throw new Error('A frame changed. Reopen SwapFont to restore the remaining swaps.');
-  } else if (action==='remove' || action==='select') {
+  } else if (['remove','select','tags','tag-options'].includes(action)) {
     if(!frames.get(tabId).allowed.includes(message.frameId)) throw new Error('This frame is no longer available. Pick text again.');
-    await page(tabId,message.frameId,action,{ruleId:message.ruleId});
+    const result=await page(tabId,message.frameId,action,{ruleId:message.ruleId,tags:message.tags});
+    if(action==='tag-options') return result;
     if(action==='select') { await remember(tabId,message.frameId); await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'cancel'))); }
   } else if (['source','apply','compare'].includes(action)) {
     await page(tabId,frameId,action,{family:message.family,enabled:message.enabled});
   } else throw new Error('Unknown SwapFont action.');
   const result = await state(tabId);
-  if (['preview','remove','undo'].includes(action)) await saveSite(tabId,result);
+  if (['preview','remove','undo','tags'].includes(action)) await saveSite(tabId,result);
   await notify(tabId,result);
   return {state:result};
 }

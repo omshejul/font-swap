@@ -63,13 +63,25 @@
     }
   }
   function targets(nextScope=scope) { return records.filter(r=>!r.protected && (nextScope==='element' ? r.element===selectedElement : U.matches(r.stack,source))); }
-  function matchesRule(record,rule) { return !record.protected && (rule.scope==='element' ? record.element===rule.element : U.matches(record.stack,rule.source)); }
+  function matchesRule(record,rule) { return !record.protected && (rule.scope==='element' ? record.element===rule.element : U.matches(record.stack,rule.source)) && U.matchesTags(record.element,rule.tags); }
+  function tagOptions(rule) {
+    const tags = new Map();
+    for (const record of records) {
+      if (record.protected || !U.matches(record.stack,rule.source)) continue;
+      for (const element of U.ancestors(record.element)) {
+        if (['html','body'].includes(element.localName)) continue;
+        if (!tags.has(element.localName)) tags.set(element.localName,new Set());
+        tags.get(element.localName).add(element);
+      }
+    }
+    return [...tags].map(([tag,elements])=>({tag,count:elements.size}));
+  }
   function ruleFor(record) { return record && rules.findLast(rule=>matchesRule(record,rule)); }
   function selectedRule() { return rules.findLast(rule=>U.normalize(rule.source)===U.normalize(source) && (rule.scope!=='element' || rule.element===selectedElement)); }
   function sync() { active=rules.length>0; applied=active; destination=selectedRule()?.destination || null; }
   function currentState() {
     const fonts = new Map(); for (const r of records.filter(r=>!r.protected)) fonts.set(r.family,(fonts.get(r.family)||0)+1);
-    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,loadingFamily,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,scope:rule.scope,count:records.filter(r=>matchesRule(r,rule)).length}))};
+    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,loadingFamily,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,scope:rule.scope,tags:rule.tags ?? null,count:records.filter(r=>matchesRule(r,rule)).length}))};
   }
   async function stylesheet(remove='',insert='') {
     if (!remove && !insert) return;
@@ -327,7 +339,7 @@
     await clean();
     const nextScope=message.scope==='element'?'element':'all';
     const previous=rules.find(rule=>U.normalize(rule.source)===U.normalize(source) && rule.scope===nextScope && (nextScope==='all' || rule.element===selectedElement));
-    const next={id:previous?.id || crypto.randomUUID(),source,destination:message.destination,scope:nextScope,element:selectedElement,alias:nextAlias,fontFaces:loaded};
+    const next={id:previous?.id || crypto.randomUUID(),source,destination:message.destination,scope:nextScope,tags:previous?.tags ?? null,element:selectedElement,alias:nextAlias,fontFaces:loaded};
     rules=rules.filter(rule=>rule!==previous); rules.push(next);
     for (const face of previous?.fontFaces || []) document.fonts.delete(face);
     for (const face of loaded) document.fonts.add(face);
@@ -344,6 +356,10 @@
       return {};
     }
     if (message.action==='state') { if (!active) scan(); return currentState(); }
+    if (message.action==='tag-options') {
+      const rule=rules.find(rule=>rule.id===message.ruleId); if (!rule) throw new Error('This swap is no longer on the page.');
+      return {tags:tagOptions(rule)};
+    }
     if (message.action==='failure') { loadingFamily='';failureMessage=status=message.error; return currentState(); }
     failureMessage='';
     if (['pick','cancel','source','select','remove','undo'].includes(message.action)) loadingFamily='';
@@ -354,7 +370,7 @@
       return {revision,rules:message.rules.map(rule=>({...rule,styles:[...new Map(records.filter(r=>U.matches(r.stack,rule.source)).map(r=>[`${r.weight}:${r.style}`,{weight:r.weight,style:r.style}])).values()].concat({weight:'400',style:'normal'})}))};
     } else if (message.action==='restore') {
       if (message.revision!==revision || rules.length || picking) return currentState();
-      const restored=await Promise.all(message.rules.map(async rule=>({id:crypto.randomUUID(),source:rule.source,destination:rule.destination,scope:'all',element:null,...await loadFaces(rule.destination,rule.font)})));
+      const restored=await Promise.all(message.rules.map(async rule=>({id:crypto.randomUUID(),source:rule.source,destination:rule.destination,scope:'all',tags:U.normalizeTags(rule.tags),element:null,...await loadFaces(rule.destination,rule.font)})));
       rules=restored;
       for(const rule of rules) for(const face of rule.fontFaces) document.fonts.add(face);
       source=rules[0]?.source || ''; scope='all'; sync(); revision++; status='Applied'; scan(); await paint();
@@ -367,6 +383,11 @@
       await refresh(); revision++; const chosen=targets(message.scope==='element'?'element':'all');
       return {revision,styles:[...new Map(chosen.map(r=>[`${r.weight}:${r.style}`,{weight:r.weight,style:r.style}])).values()]};
     } else if (message.action==='preview') await preview(message);
+    else if (message.action==='tags') {
+      const rule=rules.find(rule=>rule.id===message.ruleId); if (!rule) throw new Error('This swap is no longer on the page.');
+      const tags=U.normalizeTags(message.tags);
+      rule.tags=tags; revision++; status='Applied'; await paint();
+    }
     else if (message.action==='select') {
       const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
       source=rule.source; scope=rule.scope; selectedElement=rule.element; destination=rule.destination; stopPicking(); revision++; status='Choose a font';

@@ -19,7 +19,12 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  let saved=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key);
  assert.deepEqual(saved.rules,[{source:'Arial',destination:{kind:'google',family:'Inter'}},{source:'monospace',destination:{kind:'google',family:'Lora'}}]);
  assert(!JSON.stringify(saved).includes('Stories are better'));
+ const taggedRule=(await ok('state')).rules.find(rule=>rule.source==='Arial');
+ await ok('tags',{ruleId:taggedRule.id,frameId:0,tags:['p']});
+ saved=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key);
+ assert.deepEqual(saved.rules.find(rule=>rule.source==='Arial').tags,['p']);
  await page.reload();await restored();assert.equal(await page.locator('[data-font-swap-panel],[data-font-swap-picker]').count(),0);
+ assert.doesNotMatch(await font('#heading'),/FontSwap_/);
  passed('remember checkbox stores only font pairs; reload restores multiple swaps without opening controls');
  await page.evaluate(()=>window.addNew());await page.waitForFunction(()=>getComputedStyle(document.querySelector('#new')).fontFamily.includes('FontSwap_'));
  await page.goto(`${fixtureURL}/another`);await restored();
@@ -31,6 +36,8 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  const rule=state.rules.find(rule=>rule.source==='Arial');await ok('select',{ruleId:rule.id,frameId:0});
  await ok('preview',{destination:{kind:'google',family:'Lora'},scope:'all'});
  saved=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key);assert.equal(saved.rules.find(rule=>rule.source==='Arial').destination.family,'Lora');
+ assert.deepEqual(saved.rules.find(rule=>rule.source==='Arial').tags,['p']);
+ passed('saved tag choices survive navigation and destination edits without broadening the swap');
  await bindPanel();await panel.locator('#remember-site').uncheck();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
  assert.equal(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key),undefined);
  assert.match(await font('#body'),/FontSwap_/);await page.reload();assert.doesNotMatch(await font('#body'),/FontSwap_/);
