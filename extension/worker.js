@@ -9,9 +9,11 @@ function startCatalogRefresh() {
   catalogRefresh ||= refreshCatalog().then(async catalog => {
     if (!catalog) return;
     const message = {type:'CATALOG_CHANGED',catalog};
+    // Floating panels can outlive this worker and its connected-frame map.
+    const tabs = await chrome.tabs.query({});
     await Promise.allSettled([
       chrome.runtime.sendMessage(message),
-      ...[...frames.keys()].map(tabId => chrome.tabs.sendMessage(tabId,message,{frameId:0})),
+      ...tabs.map(tab => chrome.tabs.sendMessage(tab.id,message,{frameId:0})),
     ]);
   }).finally(() => { catalogRefresh = null; });
 }

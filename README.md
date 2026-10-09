@@ -1,6 +1,6 @@
 # SwapFont
 
-Private Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly.
+Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly.
 
 One extension includes a native side panel and a draggable floating panel. Use the header icon to **Float on page** or **Dock to side panel**. Switching cancels picking, preserves active font swaps and remembers your preferred mode. New installs start in the side panel.
 
@@ -32,7 +32,7 @@ The packaged ZIP contains the same extension files. Unzip it first, then load th
 | Strict website CSP, including `font-src 'none'` | Worker downloads font bytes; the page loads an in-memory FontFace. No remote JavaScript. |
 | Embedded frames | Only accessible frames can be picked. Swaps affect the selected document. Several swaps can remain active across accessible frames. Undo all restores them together. |
 | Destination picked from page | Reuses a family from the origin's document, including CSS generic families. |
-| Offline | The bundled font list works. Previously cached font faces can load; uncached fonts show an error and keep the current preview. |
+| Offline | The last valid downloaded catalog or bundled font list works. Previously cached font faces can load; uncached fonts show an error and keep the current preview. |
 
 ## Boundaries
 
@@ -48,9 +48,13 @@ Several font pairs can be active in the current page session. Pairs match the or
 
 ## Privacy and permissions
 
-No account, API key, backend, analytics or remote code. The extension requests access when its toolbar icon is clicked. Required permanent host access is limited to Google's font hosts. Optional website access is requested only when remembering that site; disabling remembering deletes its saved configuration. Chrome's extension settings can revoke the site permission. Saved configurations contain the exact site origin and source/replacement font names, never picked text or DOM references, and do not sync to other devices. Font requests reveal the selected family and normal connection information to Google. Page text is used locally for the picker and canvas estimate; it is not sent to a font API. Font search reads the bundled catalog locally.
+No account, client API key, behavioral analytics or remote executable code. The extension requests website access when its toolbar icon is clicked. Required permanent host access is limited to Google's font hosts. Optional website access is requested only when remembering that site; disabling remembering deletes its saved configuration. Chrome's extension settings can revoke the site permission. Saved configurations contain the exact site origin, source/replacement font names and optional tag choices, never picked text or DOM references, and do not sync to other devices. Page text, visited URLs, searches, picker activity and saved settings stay local. Google Fonts downloads reveal the requested family/style and normal connection information to Google.
 
-Font bytes are cached in extension storage, bounded to 160 cache entries. The catalog is bundled from Google's metadata at build time; the metadata endpoint is undocumented and is not needed during normal use. Font files retain their upstream licenses.
+Opening either panel immediately uses the last valid downloaded catalog or `extension/catalog.json`. If no successful refresh exists or seven days have passed since it, the worker refreshes public metadata in the background from `https://omshejul.com/api/swapfont/catalog`. Failed or interrupted attempts have a one-hour cooldown. There are no scheduled requests while unused, and refreshes do not block picking, searching or swapping. A validated download updates local catalog metadata and its successful refresh timestamp together; failures keep the previous catalog and timestamp. The last attempt time is also stored locally, so the cooldown survives a worker restart. Open panels adopt a refreshed catalog without resetting their controls.
+
+The fixed catalog request omits cookies, authentication credentials and referrer, and sends no visited website URL, page text, font search, chosen font, saved setting, installation identifier or analytics payload. It uses public CORS without an omshejul.com host permission. The developer-operated endpoint gets metadata from Google's official Fonts API, server to server, with the API key kept on the backend. Vercel processes the connecting IP and ordinary HTTP metadata, may derive approximate location, and may retain operational/security records. Authorized project administrators can review hosting logs for troubleshooting and security. The endpoint adds no custom request logging or analytics, and no log export is currently configured. See the [privacy policy](https://omshejul.com/app/swapfont/privacy) for hosting and retention details.
+
+Font bytes are cached locally, bounded to 160 cache entries. The build-time catalog remains the offline fallback; `npm run catalog` refreshes that bundled snapshot from Google's metadata endpoint. Runtime updates use the developer endpoint above. Font files retain their upstream licenses. Removing the extension clears local preferences, remembered pairs, catalog metadata/timestamps and cached fonts. Optional feedback email opens an editable draft and sends nothing automatically.
 
 The icon uses the supplied `drawing.svg`, kept in `assets/icon.svg` and rendered with Inkscape at 16, 32, 48 and 128px.
 
@@ -77,10 +81,10 @@ To refresh the bundled font catalog, run `npm run catalog`. Validate the changed
 
 ## Implementation
 
-- `worker.js` handles access, frame routing, font downloads and USER CSS.
+- `worker.js` handles access, frame routing, catalog refresh notifications, font downloads and USER CSS.
 - `content.js` owns the picker, original styles, dynamic matching and reversible swaps.
 - `font-utils.js` parses CSS families and estimates detection confidence.
-- `fonts.js` loads Google font faces and caches downloads.
+- `fonts.js` returns the available catalog, validates and coordinates weekly refreshes, loads Google font faces and caches downloads.
 - `sidepanel.html`, `.css` and `.js` contain the UI. Claude simplified the panel against `UI-CONTRACT.md`.
 - `floating.js` mounts those same controls in a closed shadow root. Constructed stylesheets isolate their appearance without an iframe, and the picker excludes the entire panel. The same manifest and ZIP include both modes.
 
