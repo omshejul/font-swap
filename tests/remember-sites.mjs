@@ -50,12 +50,30 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  passed('page-picked fonts also restore; Undo all clears saved pairs and future automatic swaps');
  // A denied optional permission must leave the preview and unsaved state intact.
  await ok('connect');await ok('source',{family:'Arial'});await ok('preview',{destination:{kind:'google',family:'Inter'},scope:'all'});
- await worker.evaluate(()=>{globalThis.__sitePermissionRequest=chrome.permissions.request;chrome.permissions.request=async()=>false;});
- await bindPanel();await panel.locator('#remember-site').click();await panel.waitForFunction(()=>document.getElementById('error').textContent.includes('Chrome needs permission'));
+ await worker.evaluate(()=>{globalThis.__sitePermissionRequest=chrome.permissions.request;globalThis.__deniedRequests=0;chrome.permissions.request=async()=>{globalThis.__deniedRequests++;return false;};});
+ await bindPanel();await panel.locator('.pair-edit').first().click();await panel.locator('#remember-site').click();
+ await panel.waitForFunction(()=>!document.getElementById('remember-permission').hidden && !document.getElementById('remember-site').disabled);
+ assert.equal(await panel.locator('.permission-heading').textContent().then(text=>text.trim()),'Not remembered for this site');
+ assert.equal(await panel.locator('#remember-description').textContent(),'Your swaps still work here. Nothing was saved.');
+ assert.equal(await panel.locator('#remember-retry').textContent(),'Try again');
+ assert(await panel.locator('#error').isHidden());assert.equal(await panel.locator('.pair #remember-permission').count(),0);
+ assert.equal(await panel.locator('#remember-site').getAttribute('aria-describedby'),'remember-description');
  assert.equal(await panel.locator('#remember-site').isChecked(),false);assert.match(await font('#body'),/FontSwap_/);
  assert.equal(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key),undefined);
+ await panel.locator('#remember-retry').focus();await panel.keyboard.press('Enter');
+ await panel.waitForFunction(()=>!document.getElementById('remember-retry').disabled);
+ assert.equal(await worker.evaluate(()=>globalThis.__deniedRequests),2);assert(await panel.locator('#remember-permission').isVisible());
+ const originalViewport=panel.viewportSize();await panel.setViewportSize({width:240,height:800});
+ for(const colorScheme of ['dark','light']) {await panel.emulateMedia({colorScheme});await panel.locator('#remember-permission').screenshot({path:`test-results/remember-callout-${colorScheme}-240.png`});}
+ assert.equal(await panel.locator('#remember-permission').evaluate(e=>e.scrollWidth>e.clientWidth),false);
+ await panel.setViewportSize(originalViewport);await panel.emulateMedia({colorScheme:'light'});
  await worker.evaluate(()=>{chrome.permissions.request=globalThis.__sitePermissionRequest;});
- passed('denied site permission leaves remembering off, shows an error and preserves the current preview');
+ await panel.locator('#remember-retry').click();await panel.waitForFunction(()=>document.getElementById('remember-site').checked && !document.getElementById('remember-site').disabled);
+ assert(await panel.locator('#remember-permission').isHidden());assert.equal(await panel.locator('#remember-site').getAttribute('aria-describedby'),null);
+ assert((await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key)).rules.length);
+ await panel.locator('#remember-site').uncheck();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
+ passed('permission denial shows the approved callout beside Remember, preserves swaps and supports keyboard retry in both themes at 240px');
+ passed('accepting a retry saves pairs and clears the permission callout');
  // Leave a Google pair saved for the browser restart check.
  await ok('connect');await ok('source',{family:'Arial'});await ok('preview',{destination:{kind:'google',family:'Inter'},scope:'all'});
  await bindPanel();await panel.locator('#remember-site').check();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);

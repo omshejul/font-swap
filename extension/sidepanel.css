@@ -9,6 +9,9 @@
   --accent-text: #ffffff;
   --accent-soft: #e7effc;
   --danger: #b3261e;
+  --permission-bg: #fffaf1;
+  --permission-border: #e3d4b7;
+  --permission-accent: #946716;
   --header: #f1f3f4;
   --header-border: #dadce0;
   --header-hover: #0000000f;
@@ -28,6 +31,9 @@
     --accent-text: #10203a;
     --accent-soft: #2a3548;
     --danger: #f2a59f;
+    --permission-bg: #282723;
+    --permission-border: #514b3d;
+    --permission-accent: #d5ae6a;
     --header: #303134;
     --header-border: #44464b;
     --header-hover: #ffffff12;
@@ -579,3 +585,21 @@ h1 img {
 
 .remember-site { display: flex; align-items: center; gap: 8px; padding: 8px 0; color: var(--muted); cursor: pointer; }
 .remember-site input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
+.permission-callout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--permission-border);
+  border-left: 2px solid var(--permission-accent);
+  border-radius: var(--radius);
+  background: var(--permission-bg);
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.permission-heading { display: flex; align-items: flex-start; gap: 8px; color: var(--text); }
+.permission-heading svg { flex: none; margin-top: 1px; color: var(--permission-accent); }
+.permission-retry { padding: 0; border: 0; background: none; color: var(--accent); cursor: pointer; }
+.permission-retry:hover { text-decoration: underline; text-underline-offset: 3px; }

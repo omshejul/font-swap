@@ -138,7 +138,7 @@ async function switchMode(tabId,mode) {
 async function panel(message, permission) {
   const {action,tabId} = message;
   if (action==='remember') {
-    if (message.enabled && !await permission) throw new Error('Chrome needs permission to remember swaps on this site.');
+    if (message.enabled && !await permission) throw Object.assign(new Error('Not remembered for this site.'), {code:'SITE_PERMISSION_DENIED'});
     const result=await state(tabId), origin=result.siteOrigin;
     if (!origin || origin!==message.origin) throw new Error('The page changed. Try again.');
     const key=siteKey(origin), rules=savedPairs(result.rules);
@@ -224,7 +224,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
     await broadcast(sender.tab.id); return {};
   })();
   else return false;
-  work.then(value=>respond({ok:true,...value}),error=>respond({ok:false,error:error.message || 'SwapFont could not complete this action.'}));
+  work.then(value=>respond({ok:true,...value}),error=>respond({ok:false,error:error.message || 'SwapFont could not complete this action.',...(error.code ? {code:error.code} : {})}));
   return true;
 });
 chrome.action.onClicked.addListener(tab => chrome.storage.local.get('panelMode', stored => {

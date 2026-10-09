@@ -26,7 +26,7 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
   if(property==='feedback'){const link=root.getElementById('feedback'),url=new URL(link.href),title=root.querySelector('h1');return {recipient:url.pathname,body:url.searchParams.get('body'),subject:url.searchParams.get('subject'),titleFits:title.scrollWidth<=title.clientWidth,focus:root.activeElement===link && getComputedStyle(link).outlineStyle!=='none'};}
   if(property==='footer'){const link=root.querySelector('.browse-fonts'),logo=link.querySelector('canvas'),r=link.getBoundingClientRect();return{href:link.href,target:link.target,rel:link.rel,svg:!!link.querySelector('.external-link'),painted:!!logo?.getContext('2d').getImageData(0,0,logo.width,logo.height).data.some((v,i)=>i%4===3&&v>0),visible:r.bottom<=host.getBoundingClientRect().bottom};}
   const rect=host.getBoundingClientRect();
-  return {hidden:!rect.width,left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,background:getComputedStyle(host).backgroundColor,rows:root.querySelectorAll('.pair').length,source:root.querySelector('.pair-from')?.textContent,destination:root.querySelector('.pair-to')?.textContent,editing:!root.getElementById('steps').hidden,picking:!!root.getElementById('view-main').dataset.picking,loading:root.getElementById('note').classList.contains('is-loading'),note:root.getElementById('note').textContent,error:root.getElementById('error').textContent,spinner:getComputedStyle(root.getElementById('note'),'::before').animationName};
+  return {hidden:!rect.width,left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,background:getComputedStyle(host).backgroundColor,rows:root.querySelectorAll('.pair').length,source:root.querySelector('.pair-from')?.textContent,destination:root.querySelector('.pair-to')?.textContent,editing:!root.getElementById('steps').hidden,picking:!!root.getElementById('view-main').dataset.picking,loading:root.getElementById('note').classList.contains('is-loading'),note:root.getElementById('note').textContent,error:root.getElementById('error').textContent,spinner:getComputedStyle(root.getElementById('note'),'::before').animationName,permission:!root.getElementById('remember-permission').hidden,remembered:root.getElementById('remember-site').checked,busy:root.getElementById('view-main').inert};
  },args:[args]}))[0].result,{tabId,selector,property});
  const wait=async predicate=>{const end=Date.now()+20000;let info;while(Date.now()<end){info=await inspect();if(predicate(info))return info;await page.waitForTimeout(40);}await page.screenshot({path:'test-results/floating-failure.png'});const title=await worker.evaluate(tabId=>chrome.action.getTitle({tabId}),tabId);const native=await docked.evaluate("JSON.stringify({text:document.body.innerText,error:document.getElementById('error')?.textContent,trace:window.__modeTrace})").catch(error=>error.message);throw new Error('Floating panel did not settle: '+JSON.stringify({info,title,native}));};
  const click=async selector=>page.mouse.click(...Object.values(await inspect(selector,'point')));
@@ -64,6 +64,19 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await click('.pair-edit');await wait(info=>info?.editing);await click('.pair-edit');await wait(info=>!info.editing);
  assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
  passed('floating panel loads fonts with a spinner and keeps saved swaps when its accordion opens or closes');
+ await worker.evaluate(()=>{globalThis.__floatingPermissionRequest=chrome.permissions.request;globalThis.__floatingDeniedRequests=0;chrome.permissions.request=async()=>{globalThis.__floatingDeniedRequests++;return false;};});
+ await click('#remember-site');await wait(info=>info.permission && !info.busy);
+ assert.equal((await inspect()).remembered,false);assert.equal((await inspect()).error,'');
+ assert.match(await inspect('#remember-permission','text'),/Not remembered for this site\s+Your swaps still work here\. Nothing was saved\.\s+Try again/);
+ for(const colorScheme of ['dark','light']) {await page.emulateMedia({colorScheme});await page.locator('[data-font-swap-panel]').screenshot({path:`test-results/remember-callout-floating-${colorScheme}.png`});}
+ assert.equal(await inspect('#remember-permission','overflow'),false);
+ await click('#remember-retry');await wait(info=>info.permission && !info.busy);assert.equal(await worker.evaluate(()=>globalThis.__floatingDeniedRequests),2);
+ assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ await worker.evaluate(()=>{chrome.permissions.request=async()=>true;});
+ await click('#remember-retry');await wait(info=>info.remembered && !info.permission && !info.busy);
+ await click('#remember-site');await wait(info=>!info.remembered && !info.busy);
+ await worker.evaluate(()=>{chrome.permissions.request=globalThis.__floatingPermissionRequest;});
+ passed('floating permission denial uses the approved callout and repeated retry preserves swaps until accepted');
  const tagPanelStart=await inspect();
  const waitTags=async predicate=>{const end=Date.now()+10000;while(Date.now()<end){const tags=await inspect('#tag-filter','tags');if(predicate(tags))return tags;await page.waitForTimeout(30);}throw new Error('Floating tag filter did not settle: '+JSON.stringify(await inspect('#tag-filter','tags')));};
  await click('.pair-filter');await waitTags(tags=>tags.open && tags.ready);

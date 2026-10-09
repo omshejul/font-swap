@@ -15,6 +15,8 @@ const els = {
   undo: $('undo'),
   remember: $('remember-site'),
   rememberRow: $('remember-row'),
+  rememberPermission: $('remember-permission'),
+  rememberRetry: $('remember-retry'),
   mode: $('mode-toggle'),
   feedback: $('feedback'),
   connectError: $('connect-error'),
@@ -49,6 +51,7 @@ let state = null;
 let busy = false;
 let pending = '';
 let errorText = '';
+let rememberDeniedOrigin = '';
 let noteText = '';
 let dismissedKey = '';
 let doneKey = ''; // source whose swap is finished, so the steps can collapse
@@ -141,7 +144,7 @@ async function connect() {
   tagEdits.clear();
   state = null;
   busy = false;
-  pending = errorText = noteText = doneKey = dismissedKey = '';
+  pending = errorText = rememberDeniedOrigin = noteText = doneKey = dismissedKey = '';
   showView('loading');
   let tab;
   try {
@@ -179,6 +182,7 @@ const destinationName = (destination) => (destination && destination.family) || 
 function setState(next) {
   const previous = state;
   state = next;
+  if (next.siteOrigin !== rememberDeniedOrigin || next.remembered || !next.rules?.length) rememberDeniedOrigin = '';
   updateFeedback();
   if (previous && previous.picking && !next.picking) {
     const changed = sourceKey(previous) !== sourceKey(next) || destinationName(previous.destination) !== destinationName(next.destination);
@@ -216,6 +220,10 @@ function render() {
   els.rememberRow.title = state.siteOrigin || '';
   if (!busy) els.remember.checked = Boolean(state.remembered);
   els.remember.disabled = blocked;
+  els.rememberPermission.hidden = !rememberDeniedOrigin || els.rememberRow.hidden;
+  els.rememberRetry.disabled = blocked;
+  if (els.rememberPermission.hidden) els.remember.removeAttribute('aria-describedby');
+  else els.remember.setAttribute('aria-describedby', 'remember-description');
   els.mode.disabled = blocked;
   views.main.dataset.picking = state.picking || '';
   const inline = renderPairs(rules, editing, waitingForSource);
@@ -426,7 +434,11 @@ async function run(action, payload = {}, family = '') {
   if (response.stale) return false;
   busy = false;
   pending = '';
-  if (!response.ok) errorText = describeError(response.error);
+  if (action === 'remember') rememberDeniedOrigin = '';
+  if (!response.ok) {
+    if (action === 'remember' && payload.enabled && response.code === 'SITE_PERMISSION_DENIED') rememberDeniedOrigin = payload.origin;
+    else errorText = describeError(response.error);
+  }
   if (response.ok && response.state) {
     if (action === 'undo') dismissedKey = doneKey = sourceKey(response.state);
     setState(response.state);
@@ -537,6 +549,7 @@ els.mode.addEventListener('click', async () => {
 });
 
 els.remember.addEventListener('change', () => run('remember', { enabled: els.remember.checked, origin: state.siteOrigin }));
+els.rememberRetry.addEventListener('click', () => run('remember', { enabled: true, origin: state.siteOrigin }));
 
 els.retry.addEventListener('click', connect);
 els.undo.addEventListener('click', () => run('undo'));

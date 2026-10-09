@@ -57,6 +57,14 @@
       <button type="button" id="another" class="another" hidden><span aria-hidden="true">＋</span> Pick another font</button>
 
       <label id="remember-row" class="remember-site" hidden><input id="remember-site" type="checkbox"> <span>Remember for this site</span></label>
+      <section id="remember-permission" class="permission-callout" role="status" hidden>
+        <div class="permission-heading">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/></svg>
+          <span>Not remembered for this site</span>
+        </div>
+        <p id="remember-description">Your swaps still work here. Nothing was saved.</p>
+        <button id="remember-retry" class="permission-retry" type="button">Try again</button>
+      </section>
 
       <div id="messages-home">
         <p id="note" class="note" role="status"></p>
