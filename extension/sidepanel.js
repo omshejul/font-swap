@@ -99,7 +99,7 @@ function updateFeedback() {
     `Date: ${new Date().toISOString()}`,
   ];
   if (errorText || state?.error) details.push(`Error: ${describeError(errorText || state.error)}`);
-  const body = ['What happened, or what would you like to see?', '', '', 'Steps to reproduce (if it is a bug):', '', '', '--- Diagnostics: edit or remove anything ---', ...details].join('\r\n');
+  const body = ['Feedback:', '', '', '--- Diagnostics: edit or remove anything ---', ...details].join('\r\n');
   els.feedback.href = `mailto:chromewebstore@omshejul.com?subject=${encodeURIComponent(`${manifest.name} feedback (v${manifest.version})`)}&body=${encodeURIComponent(body)}`;
 }
 els.feedback.addEventListener('click', updateFeedback);

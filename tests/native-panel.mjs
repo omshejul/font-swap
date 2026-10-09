@@ -82,8 +82,9 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.match((await pagePicker(worker,page)).text,/Pick the font to replace.*Hover text to see its font, then click it.*CancelEsc/);
  const visibleURL=await worker.evaluate(async()=> (await chrome.tabs.query({active:true,currentWindow:true}))[0].url);assert.equal(visibleURL,page.url());
  passed('production manifest toolbar gesture opens native panel and grants activeTab');
- const feedback=await panel.evaluate("(()=>{const link=document.getElementById('feedback'),url=new URL(link.href);return {recipient:url.pathname,subject:url.searchParams.get('subject'),body:url.searchParams.get('body'),version:chrome.runtime.getManifest().version,icon:!!link.querySelector('svg'),label:link.getAttribute('aria-label')};})()");
- assert.equal(feedback.recipient,'chromewebstore@omshejul.com');assert.equal(feedback.subject,`SwapFont feedback (v${feedback.version})`);assert(feedback.icon && feedback.label);
+ const feedback=await panel.evaluate("(()=>{const link=document.getElementById('feedback'),url=new URL(link.href);return {recipient:url.pathname,subject:url.searchParams.get('subject'),body:url.searchParams.get('body'),version:chrome.runtime.getManifest().version,icon:link.querySelector('svg').getAttribute('viewBox'),label:link.getAttribute('aria-label')};})()");
+ assert.equal(feedback.recipient,'chromewebstore@omshejul.com');assert.equal(feedback.subject,`SwapFont feedback (v${feedback.version})`);assert.equal(feedback.icon,'0 -960 960 960');assert(feedback.label);
+ assert.match(feedback.body,/^Feedback:\r\n/);assert(!feedback.body.includes('Steps to reproduce'));
  assert.match(feedback.body,/Layout: Side panel/);assert.match(feedback.body,/Website: https:\/\/www.iana.org\r\n/);assert(!feedback.body.includes('/domains/reserved'));
  passed('side-panel feedback link prefills the running version and site origin without URL paths');
  await page.locator('h1').click();await panel.wait("document.querySelector('.pair-pending') && !document.getElementById('search').disabled");
