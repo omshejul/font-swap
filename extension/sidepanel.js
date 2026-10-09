@@ -360,6 +360,11 @@ function currentFilterTags() {
   return edit ? edit.tags : state.rules.find(rule => ruleKey(rule) === ruleKey(filterRule))?.tags ?? null;
 }
 
+function allTagsSelected() {
+  const tags = currentFilterTags();
+  return tags == null || (tagChoices.length > 0 && tagChoices.every(choice => tags.includes(choice.tag)));
+}
+
 function renderTagOptions() {
   if (!filterRule) return;
   const tags = currentFilterTags(), query = els.tagSearch.value.trim().toLowerCase();
@@ -384,7 +389,9 @@ function renderTagOptions() {
     if (!visible.length) els.tagOptions.append(Object.assign(document.createElement('p'), {className:'tag-empty',textContent:'No tags found'}));
   }
   for (const input of els.tagOptions.querySelectorAll('input')) input.checked = tags == null || tags.includes(input.dataset.tag);
-  els.allTags.setAttribute('aria-pressed',String(tags == null));
+  const all = allTagsSelected();
+  els.allTags.textContent = all ? 'Clear' : 'All tags';
+  els.allTags.setAttribute('aria-pressed',String(all));
 }
 
 async function openTagFilter(rule) {
@@ -599,7 +606,7 @@ els.pairs.addEventListener('click', async (event) => {
 });
 
 els.tagSearch.addEventListener('input',() => { renderTagOptions(); positionTagFilter(); });
-els.allTags.addEventListener('click',() => updateTags(null));
+els.allTags.addEventListener('click',() => updateTags(allTagsSelected() ? [] : null));
 els.tagOptions.addEventListener('change',event => {
   const tag = event.target.dataset.tag;
   if (!tag || !filterRule) return;

@@ -88,7 +88,13 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await click('#tag-search');await page.keyboard.type('heading');await waitTags(tags=>tags.options===1);
  await click('.tag-option input[data-tag="h1"]');await page.keyboard.press('Space');await page.keyboard.press('Space');
  await page.waitForFunction(()=>getComputedStyle(document.querySelector('#heading')).fontFamily.includes('FontSwap_'));
+ assert.equal(await inspect('#all-tags','text'),'Clear');
+ await click('#all-tags');await waitTags(tags=>!tags.all && tags.checked.length===0);
+ assert.equal(await inspect('#all-tags','text'),'All tags');
+ await page.waitForFunction(()=>!getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
  await click('#all-tags');await waitTags(tags=>tags.all && !tags.summary);
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
+ passed('floating bulk action clears all tags during search and restores all with the next click');
  await page.emulateMedia({colorScheme:'dark'});await page.screenshot({path:'test-results/tag-filter-floating-dark.png'});
  await page.emulateMedia({colorScheme:'light'});await page.screenshot({path:'test-results/tag-filter-floating-light.png'});
  await page.setViewportSize({width:272,height:640});await waitTags(tags=>tags.fits);

@@ -46,6 +46,7 @@ export async function testTagFilters(page,ok,fixtureURL,passed) {
 export async function testNativeTagFilter(panel,page,passed) {
  await panel.click('.pair-filter');await panel.wait("document.getElementById('tag-filter').matches(':popover-open') && !document.getElementById('tag-search').disabled");
  assert.equal(await panel.evaluate("document.getElementById('all-tags').getAttribute('aria-pressed')"),'true');
+ assert.equal(await panel.evaluate("document.getElementById('all-tags').textContent"),'Clear');
  assert.equal(await panel.evaluate("document.getElementById('tag-filter').textContent.includes('matching elements') || document.getElementById('tag-filter').textContent.includes('Updates live')"),false);
  await panel.click('.tag-option input[data-tag="h1"]');
  await page.waitForFunction(()=>!getComputedStyle(document.querySelector('#heading')).fontFamily.includes('FontSwap_'));
@@ -55,7 +56,12 @@ export async function testNativeTagFilter(panel,page,passed) {
  await panel.wait("document.querySelectorAll('.tag-option').length===1");
  await panel.click('.tag-option input[data-tag="h1"]');
  await page.waitForFunction(()=>getComputedStyle(document.querySelector('#heading')).fontFamily.includes('FontSwap_'));
+ await panel.wait("document.getElementById('all-tags').textContent==='Clear'");
+ await panel.click('#all-tags');await panel.wait("document.getElementById('all-tags').textContent==='All tags' && !document.querySelector('.tag-option input:checked')");
+ await page.waitForFunction(()=>!getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
  await panel.click('#all-tags');await panel.wait("document.getElementById('all-tags').getAttribute('aria-pressed')==='true' && !document.querySelector('.tag-summary')");
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
+ passed('side-panel bulk action clears all tags during search and restores all with the next click');
  await panel.evaluate("(()=>{const search=document.getElementById('tag-search');search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));})()");
  for (const width of [240,320]) {
   await panel.command('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:false});
