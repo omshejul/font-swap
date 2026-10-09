@@ -14,7 +14,7 @@ Send {type:'PANEL',action,tabId,...payload} through chrome.runtime.sendMessage. 
 - tags {ruleId,frameId,tags:null|[tag,...]}: narrow one pair to selected tags, including nested text with the same original family. Null means all tags; an empty array applies nowhere. Keep other pairs and the current editor unchanged.
 - undo: restore all pairs in all accessible frames.
 
-State includes {tabId,frameId,url,source,destination,selection,count,pageFonts,active,applied,picking,status,error,warnings,rules:[{id,frameId,source,destination:{kind,family},tags,count}]}. Source is the original CSS family. Destination is null for a new source. Existing pairs persist when picking another source. Choosing a destination for the same source replaces that pair. Rules aggregate accessible frames.
+State includes {tabId,frameId,url,source,destination,selectedRuleId,tags,selection,count,pageFonts,active,applied,picking,status,error,warnings,rules:[{id,frameId,source,destination:{kind,family},tags,count}]}. Source is the original CSS family. Destination is null for a new source. Existing pairs persist when picking another source. Choosing a destination edits the selected rule by ID. Picking text outside a filtered swap creates a separate draft scoped to the picked HTML tag, even for the same source family. Same-family rules edit, filter and remove independently; stable rule order decides overlapping scopes. Rules aggregate accessible frames.
 
 Listen for STATE_CHANGED {tabId,state}. Reconnect on tabs.onActivated and tabs.onUpdated complete. Ignore stale responses and updates for other tabs. Show state.error and command failures; preserve current swaps on failure. Loading blocks duplicate choices. Use textContent for dynamic text.
 

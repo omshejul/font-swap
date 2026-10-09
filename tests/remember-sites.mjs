@@ -38,6 +38,17 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  saved=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key);assert.equal(saved.rules.find(rule=>rule.source==='Arial').destination.family,'Lora');
  assert.deepEqual(saved.rules.find(rule=>rule.source==='Arial').tags,['p']);
  passed('saved tag choices survive navigation and destination edits without broadening the swap');
+ await ok('pick',{mode:'source'});await page.locator('#heading').click();
+ state=await ok('preview',{destination:{kind:'google',family:'Inter'},scope:'all'});
+ const headingRule=state.rules.find(rule=>rule.source==='Arial' && rule.tags?.includes('h1'));
+ assert(headingRule);saved=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key);
+ assert.equal(saved.rules.filter(rule=>rule.source==='Arial').length,2);
+ await page.reload();await restored();await page.waitForFunction(()=>getComputedStyle(document.querySelector('#heading')).fontFamily.includes('FontSwap_'));
+ assert.notEqual(await font('#heading'),await font('#body'));
+ await ok('connect');state=await ok('state');
+ const restoredHeading=state.rules.find(rule=>rule.source==='Arial' && rule.tags?.includes('h1'));
+ await ok('remove',{ruleId:restoredHeading.id,frameId:0});assert.doesNotMatch(await font('#heading'),/FontSwap_/);assert.match(await font('#body'),/FontSwap_/);
+ passed('saved swaps sharing one source font restore separate tag scopes and remain independently removable');
  await bindPanel();await panel.locator('#remember-site').uncheck();await panel.waitForFunction(()=>!document.getElementById('remember-site').disabled);
  assert.equal(await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key),undefined);
  assert.match(await font('#body'),/FontSwap_/);await page.reload();assert.doesNotMatch(await font('#body'),/FontSwap_/);

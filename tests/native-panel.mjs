@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {testNativeTagFilter} from './tag-filters.mjs';
+import {testNativeTagFilter,testNativeSameSourceTags} from './tag-filters.mjs';
 import {mkdir,writeFile} from 'node:fs/promises';
 
 export async function pagePicker(worker,page) {
@@ -60,6 +60,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  const panel=await attachPanel(browserCDP,panelTarget.targetId);
  await panel.evaluate(`(()=>{window.__fontTrace=[];const brief=s=>s&&({source:s.source,destination:s.destination?.family,picking:s.picking,status:s.status,rules:s.rules?.length});const log=(kind,action,s)=>{window.__fontTrace.push({at:Math.round(performance.now()),kind,action,state:brief(s)});window.__fontTrace=window.__fontTrace.slice(-35);};chrome.runtime.onMessage.addListener(m=>{if(m.type==='STATE_CHANGED')log('event','changed',m.state);});const send=chrome.runtime.sendMessage.bind(chrome.runtime);chrome.runtime.sendMessage=async m=>{log('send',m.action);const r=await send(m);log('response',m.action,r?.state);return r;};})()`);
  const choose=async (family,refreshDuringClick=false)=>{
+  await panel.wait("!document.getElementById('search').disabled && !document.getElementById('view-main').inert && !document.getElementById('steps').hidden");
   await panel.click('#search');await panel.command('Input.insertText',{text:family});
   await panel.wait(`!!document.querySelector('#results .result[data-family="${family}"]')`);
   if(refreshDuringClick) {
@@ -128,7 +129,7 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await page.goto(fixtureURL);await trigger();await panel.wait("!!document.getElementById('view-main').dataset.picking");
  await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .pair-from')?.textContent==='Arial'");
  assert.equal(await panel.evaluate("!!document.getElementById('warnings') || !!document.getElementById('warning-list')"),false);
- await choose('Inter');await testNativeTagFilter(panel,page,passed);await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting')");
+ await choose('Inter');await testNativeTagFilter(panel,page,passed);await testNativeSameSourceTags(panel,page,choose,passed);await panel.click('#another');await panel.wait("!!document.querySelector('.pair-awaiting')");
  assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.pair-awaiting .pair-from')).borderStyle"),'dashed');
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-from').textContent"),'Pick from page');
  await panel.click('.pair-awaiting .pair-from');assert.equal(await panel.evaluate("!document.getElementById('view-main').dataset.picking"),false);

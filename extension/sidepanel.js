@@ -176,7 +176,8 @@ function scheduleConnect() {
 
 // State
 
-const sourceKey = (s) => (s && s.source ? `${s.frameId}:${s.source}` : '');
+const sourceKey = (s) => (s && s.source ? `${s.frameId}:${s.selectedRuleId || s.source}` : '');
+const pairKey = rule => rule.id === 'draft' ? `${rule.frameId}:${rule.source}` : ruleKey(rule);
 const destinationName = (destination) => (destination && destination.family) || '';
 
 function setState(next) {
@@ -249,11 +250,11 @@ function render() {
 }
 
 function renderPairs(rules, editing, waitingForSource) {
-  const hasDraft = !waitingForSource && state.source && !rules.some(rule => `${rule.frameId}:${rule.source}` === sourceKey(state)) && sourceKey(state) !== dismissedKey;
-  const rows = waitingForSource ? [...rules, {id:'picking',frameId:state.frameId,source:'Pick from page',destination:null}] : hasDraft ? [...rules, {id:'draft', frameId:state.frameId, source:state.source, destination:null}] : rules;
+  const hasDraft = !waitingForSource && state.source && !rules.some(rule => ruleKey(rule) === sourceKey(state)) && sourceKey(state) !== dismissedKey;
+  const rows = waitingForSource ? [...rules, {id:'picking',frameId:state.frameId,source:'Pick from page',destination:null}] : hasDraft ? [...rules, {id:'draft', frameId:state.frameId, source:state.source, destination:null,tags:state.tags}] : rules;
   els.pairs.hidden = !rows.length;
   const openKey = editing ? sourceKey(state) : '';
-  const inline = rows.some((rule) => `${rule.frameId}:${rule.source}` === openKey);
+  const inline = rows.some((rule) => pairKey(rule) === openKey);
   const signature = JSON.stringify([openKey, state.picking, rows.map((rule) => [rule.id, rule.frameId, rule.source, destinationName(rule.destination), rule.tags])]);
   if (signature === pairsSignature) return inline;
   pairsSignature = signature;
@@ -269,7 +270,7 @@ function renderPairs(rules, editing, waitingForSource) {
     item.className = waiting ? `pair pair-pending pair-source${state.picking === 'source' ? ' pair-awaiting' : ''}` : draft ? 'pair pair-pending' : 'pair';
     const header = Object.assign(document.createElement('div'), { className: 'pair-header' });
     const body = Object.assign(document.createElement('div'), { className: 'pair-body', id: `pair-${rule.frameId}-${rule.id}` });
-    const open = waiting || `${rule.frameId}:${from}` === openKey;
+    const open = waiting || pairKey(rule) === openKey;
     body.hidden = !open;
     const edit = document.createElement('button');
     edit.type = 'button';
@@ -459,10 +460,10 @@ async function choose(family, focusRow = true) {
   if (!key) return;
   const ok = await run('preview', { destination: { kind: 'google', family }, scope: 'all' }, family);
   if (!ok) return;
-  doneKey = key;
+  doneKey = sourceKey(state);
   els.search.value = '';
   render();
-  const rule = state.rules.find(rule => `${rule.frameId}:${rule.source}` === key);
+  const rule = state.rules.find(rule => ruleKey(rule) === doneKey);
   if (focusRow) $(`edit-${rule?.frameId}-${rule?.id}`)?.focus();
 }
 
@@ -599,8 +600,10 @@ els.pairs.addEventListener('click', async (event) => {
       render();
       els.search.focus();
     }
-  } else if (await run('remove', payload)) {
-    if (sourceKey(state) === `${rule.frameId}:${rule.source}`) { dismissedKey = doneKey = sourceKey(state); render(); }
+  } else {
+    const selected = sourceKey(state) === ruleKey(rule);
+    if (!await run('remove', payload)) return;
+    if (selected) { dismissedKey = doneKey = sourceKey(state); render(); }
     (els.another.hidden ? els.pairs.querySelector('[data-action="pick-source"]') : els.another)?.focus();
   }
 });

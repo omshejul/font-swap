@@ -4,6 +4,7 @@
   const U = globalThis.FSFontUtils;
   const marker = `data-font-swap-${crypto.randomUUID().replaceAll('-','')}`;
   let source = '', destination = null, scope = 'all', selection = null, selectedElement = null;
+  let selectedRuleId = '', draftTags = null;
   let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
   let revision = 0, styleRevision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
@@ -77,11 +78,11 @@
     return [...tags].map(([tag,elements])=>({tag,count:elements.size}));
   }
   function ruleFor(record) { return record && rules.findLast(rule=>matchesRule(record,rule)); }
-  function selectedRule() { return rules.findLast(rule=>U.normalize(rule.source)===U.normalize(source) && (rule.scope!=='element' || rule.element===selectedElement)); }
+  function selectedRule() { return rules.find(rule=>rule.id===selectedRuleId); }
   function sync() { active=rules.length>0; applied=active; destination=selectedRule()?.destination || null; }
   function currentState() {
     const fonts = new Map(); for (const r of records.filter(r=>!r.protected)) fonts.set(r.family,(fonts.get(r.family)||0)+1);
-    return {url:location.href,selection,source,destination,scope,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,loadingFamily,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,scope:rule.scope,tags:rule.tags ?? null,count:records.filter(r=>matchesRule(r,rule)).length}))};
+    return {url:location.href,selection,source,destination,scope,selectedRuleId,tags:selectedRule()?.tags ?? draftTags,count:targets().length,pageFonts:[...fonts].map(([family,count])=>({family,count})).sort((a,b)=>b.count-a.count),active,compared,applied,picking,status,loadingFamily,error:failureMessage,warnings:[...new Set(warnings)],rules:rules.map(rule=>({id:rule.id,source:rule.source,destination:rule.destination,scope:rule.scope,tags:rule.tags ?? null,count:records.filter(r=>matchesRule(r,rule)).length}))};
   }
   async function stylesheet(remove='',insert='') {
     if (!remove && !insert) return;
@@ -305,7 +306,11 @@
       const record=records.find(r=>r.element===element);
       if (!record) { await paint(); status='Pick visible text instead of an image or icon.'; announce('changed'); return; }
       if (mode==='source') {
-        compared=false; source=record.family; selectedElement=element; scope='all'; sync();
+        compared=false; source=record.family; selectedElement=element; scope='all';
+        selectedRuleId=visibleRule?.id || '';
+        // Uncovered text gets its own tag scope instead of replacing a filtered sibling.
+        draftTags=!selectedRuleId && rules.some(rule=>U.matches(record.stack,rule.source) && Array.isArray(rule.tags)) ? [element.localName] : null;
+        sync();
         const estimate=U.estimate(element,record.stack);
         selection={family:record.family,stack:record.stack,text:record.text.slice(0,160),tag:element.tagName.toLowerCase(),weight:record.weight,style:record.style,size:record.size,confidence:estimate && U.normalize(estimate)===U.normalize(record.family) ? 'estimated' : 'css'};
         warnings=[];
@@ -338,9 +343,11 @@
     if (message.revision!==revision) throw new Error('The origin changed. Choose the destination again.');
     await clean();
     const nextScope=message.scope==='element'?'element':'all';
-    const previous=rules.find(rule=>U.normalize(rule.source)===U.normalize(source) && rule.scope===nextScope && (nextScope==='all' || rule.element===selectedElement));
-    const next={id:previous?.id || crypto.randomUUID(),source,destination:message.destination,scope:nextScope,tags:previous?.tags ?? null,element:selectedElement,alias:nextAlias,fontFaces:loaded};
-    rules=rules.filter(rule=>rule!==previous); rules.push(next);
+    const chosen=selectedRule();
+    const previous=chosen?.scope===nextScope ? chosen : null;
+    const next={id:previous?.id || crypto.randomUUID(),source,destination:message.destination,scope:nextScope,tags:previous ? previous.tags : draftTags,element:selectedElement,alias:nextAlias,fontFaces:loaded};
+    if (previous) rules=rules.map(rule=>rule===previous ? next : rule); else rules.push(next);
+    selectedRuleId=next.id; draftTags=null;
     for (const face of previous?.fontFaces || []) document.fonts.delete(face);
     for (const face of loaded) document.fonts.add(face);
     destination=message.destination; scope=nextScope;
@@ -373,10 +380,11 @@
       const restored=await Promise.all(message.rules.map(async rule=>({id:crypto.randomUUID(),source:rule.source,destination:rule.destination,scope:'all',tags:U.normalizeTags(rule.tags),element:null,...await loadFaces(rule.destination,rule.font)})));
       rules=restored;
       for(const rule of rules) for(const face of rule.fontFaces) document.fonts.add(face);
-      source=rules[0]?.source || ''; scope='all'; sync(); revision++; status='Applied'; scan(); await paint();
+      source=rules[0]?.source || ''; selectedRuleId=rules[0]?.id || ''; draftTags=null; scope='all'; sync(); revision++; status='Applied'; scan(); await paint();
     } else if (message.action==='source') {
       if (typeof message.family!=='string' || !message.family.trim() || message.family.length>200) throw new Error('Choose an origin font.');
-      await clean(); compared=false; source=message.family.trim(); sync();
+      await clean(); compared=false; source=message.family.trim();
+      selectedRuleId=rules.findLast(rule=>U.normalize(rule.source)===U.normalize(source) && (rule.scope!=='element' || rule.element===selectedElement))?.id || ''; draftTags=null; sync();
       if (selection && U.normalize(selection.family)!==U.normalize(source)) { selection=null; selectedElement=null; scope='all'; }
       revision++; scan(); await paint(); status=targets().length?'Choose a font':'No matching text on this page';
     } else if (message.action==='prepare') {
@@ -390,15 +398,15 @@
     }
     else if (message.action==='select') {
       const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
-      source=rule.source; scope=rule.scope; selectedElement=rule.element; destination=rule.destination; stopPicking(); revision++; status='Choose a font';
+      source=rule.source; selectedRuleId=rule.id; draftTags=null; scope=rule.scope; selectedElement=rule.element; destination=rule.destination; stopPicking(); revision++; status='Choose a font';
     } else if (message.action==='remove') {
       const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
-      await clean(); rules=rules.filter(item=>item!==rule); for(const face of rule.fontFaces) document.fonts.delete(face); sync(); revision++; scan(); await paint(); status=active?'Applied':'Original fonts restored';
+      await clean(); rules=rules.filter(item=>item!==rule); for(const face of rule.fontFaces) document.fonts.delete(face); if(selectedRuleId===rule.id) selectedRuleId=''; sync(); revision++; scan(); await paint(); status=active?'Applied':'Original fonts restored';
     }
     else if (message.action==='apply') { if (!active) throw new Error('Choose a destination first.'); if (compared) { compared=false; await refresh(); } applied=true; status='Applied'; }
     else if (message.action==='undo') {
       await clean(); compared=false; revision++;
-      for (const rule of rules) for (const face of rule.fontFaces) document.fonts.delete(face); rules=[]; sync(); stopPicking(); scan(); status='Original fonts restored';
+      for (const rule of rules) for (const face of rule.fontFaces) document.fonts.delete(face); rules=[]; selectedRuleId=''; draftTags=null; sync(); stopPicking(); scan(); status='Original fonts restored';
     } else if (message.action==='compare') { if (!active) throw new Error('Choose a destination first.'); compared=!!message.enabled; await refresh(); status=compared?'Showing original':applied?'Applied':'Previewing'; }
     else throw new Error('Unknown page action.');
     return currentState();

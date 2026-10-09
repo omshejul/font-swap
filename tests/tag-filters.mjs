@@ -40,6 +40,24 @@ export async function testTagFilters(page,ok,fixtureURL,passed) {
  await ok('tags',{...target,tags:null});assert.match(await font('#heading'),/FontSwap_/);
  await ok('undo');assert.match(await font('#heading'),/^Arial/);assert.match(await font('#generic'),/^monospace/);
  passed('empty tags pause one swap; changing its font keeps the scope, All tags restores full coverage, and Undo restores originals');
+ await ok('pick',{mode:'source'});await page.locator('#heading').click();
+ response=await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'});
+ const headingRule=response.state.rules.find(rule=>rule.source==='Arial');
+ await ok('tags',{ruleId:headingRule.id,frameId:0,tags:['h1']});
+ await ok('pick',{mode:'source'});await page.locator('#body').click();
+ response=await ok('state');assert.equal(response.state.selectedRuleId,'');assert.equal(response.state.destination,null);assert.deepEqual(response.state.tags,['p']);
+ response=await ok('preview',{destination:{kind:'google',family:'Inter'},scope:'all'});
+ const paragraphRule=response.state.rules.find(rule=>rule.id!==headingRule.id && rule.source==='Arial');
+ assert.equal(response.state.rules.filter(rule=>rule.source==='Arial').length,2);assert.deepEqual(paragraphRule.tags,['p']);
+ const paragraphFont=await font('#body');assert.match(paragraphFont,/FontSwap_/);assert.match(await font('#heading'),/^monospace/);
+ await ok('pick',{mode:'source'});await page.locator('#heading').click();
+ assert.equal((await ok('state')).state.selectedRuleId,headingRule.id);
+ response=await ok('preview',{destination:{kind:'google',family:'Lora'},scope:'all'});
+ assert.equal(response.state.rules.filter(rule=>rule.source==='Arial').length,2);assert.equal(await font('#body'),paragraphFont);
+ assert.match(await font('#heading'),/FontSwap_/);assert.notEqual(await font('#heading'),paragraphFont);
+ await ok('remove',{ruleId:headingRule.id,frameId:0});assert.match(await font('#heading'),/^Arial/);assert.equal(await font('#body'),paragraphFont);
+ await ok('undo');assert.match(await font('#body'),/^Arial/);
+ passed('one source font supports independent heading and paragraph swaps; picking, editing and removing one preserves the other');
  await page.goto(fixtureURL);await ok('connect');
 }
 
@@ -76,4 +94,33 @@ export async function testNativeTagFilter(panel,page,passed) {
  await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
  await panel.wait("!document.getElementById('tag-filter').matches(':popover-open') && document.activeElement?.classList.contains('pair-filter')");
  passed('side-panel tag popover searches and applies without losing checkbox focus, fits 240/320px and closes with Escape');
+}
+
+export async function testNativeSameSourceTags(panel,page,choose,passed) {
+ const font=selector=>page.locator(selector).evaluate(element=>getComputedStyle(element).fontFamily);
+ const close=async()=>{
+  await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+ };
+ await panel.click('.pair-filter');await panel.wait("!document.getElementById('all-tags').disabled");
+ await panel.click('#all-tags');await panel.click('.tag-option input[data-tag="h1"]');
+ await close();
+ await panel.click('#another');await panel.wait("!!document.getElementById('view-main').dataset.picking");
+ await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .tag-summary')?.textContent==='p'");
+ await choose('Lora');
+ assert.equal(await panel.evaluate("[...document.querySelectorAll('.pair-from')].map(element=>element.textContent).join(',')"),'Arial,Arial');
+ const bodyFont=await font('#body');assert.notEqual(await font('#heading'),bodyFont);
+ await panel.click('.pair:nth-child(1) .pair-edit');await panel.wait("!!document.querySelector('.pair:nth-child(1) .pair-body:not([hidden]) #steps')");
+ assert.equal(await panel.evaluate("document.querySelectorAll('.pair-edit[aria-expanded=true]').length"),1);
+ await choose('Roboto');assert.equal(await font('#body'),bodyFont);
+ const headingFont=await font('#heading');
+ await panel.click('.pair:nth-child(2) .pair-edit');await choose('Inter');assert.equal(await font('#heading'),headingFont);
+ assert.equal(await panel.evaluate("document.querySelectorAll('.pair').length"),2);
+ await panel.screenshot('same-source-sidepanel.png');
+ await panel.click('.pair:nth-child(2) .pair-remove');await panel.wait("document.querySelectorAll('.pair').length===1");
+ assert.equal(await font('#heading'),headingFont);assert.match(await font('#body'),/^Arial/);
+ await panel.click('.pair-edit');await choose('Inter');
+ await panel.click('.pair-filter');await panel.wait("!document.getElementById('all-tags').disabled");
+ await panel.click('#all-tags');await panel.wait("!document.querySelector('.tag-summary')");await close();
+ passed('side-panel rows with the same source font edit and remove independently with separate tag filters');
 }

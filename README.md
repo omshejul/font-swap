@@ -6,7 +6,7 @@ One extension includes a native side panel and a draggable floating panel. Use t
 
 The floating panel starts in the top-right and preserves the website's width. Closing cancels picking and keeps current swaps; the toolbar reopens it. Drag the header, or focus its grip and use arrow keys to move it. Notes and the repeated CSS-family explanation are removed from both modes.
 
-Each applied swap has an optional **Apply to tags** funnel. Open it to search and select HTML tags such as `h1`, `h2` and `p`. Changes apply immediately to matching text inside those tags, including nested text. **All tags** restores normal coverage. Each swap keeps its own choices, including when changing the replacement font or remembering the site.
+Each applied swap has an optional **Apply to tags** funnel. Open it to search and select HTML tags such as `h1`, `h2` and `p`. Changes apply immediately to matching text inside those tags, including nested text. The bulk button toggles between **Clear** and **All tags**. Each swap keeps its own choices, including when changing the replacement font or remembering the site. To use different replacements for the same original font, filter the first swap, then use **Pick another font** on text outside that filter. The new swap starts scoped to the picked tag; each row edits independently.
 
 The header's feedback icon opens an editable email draft to chromewebstore@omshejul.com with the extension version, browser, layout, site origin, active swaps and any error. It includes no page text or URL paths. Nothing is sent until you send the email.
 
