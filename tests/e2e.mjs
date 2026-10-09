@@ -8,6 +8,7 @@ import {testSavedSites,testSavedSiteRestart} from './remember-sites.mjs';
 import {testNativePanel} from './native-panel.mjs';
 import {testFloatingPanel,testRememberedMode} from './floating-panel.mjs';
 import {testTagFilters} from './tag-filters.mjs';
+import {testCatalogBrowser,testCatalogIdle} from './catalog-browser.mjs';
 const temp=await mkdtemp(path.join(tmpdir(),'font-swap-e2e-'));
 const extension=path.join(temp,'extension'); await cp('extension',extension,{recursive:true});
 const manifest=JSON.parse(await readFile(path.join(extension,'manifest.json')));
@@ -113,7 +114,9 @@ try {
  await page.goto('chrome://version');const blocked=await send('connect');assert.equal(blocked.ok,false);passed('restricted browser page reports unsupported action');
  await context.close();
  context=await chromium.launchPersistentContext(path.join(temp,'profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
- await testSavedSiteRestart(context,context.serviceWorkers()[0] || await context.waitForEvent('serviceworker'),`http://127.0.0.1:${port}`,passed);
+ const restartedWorker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+ await testCatalogIdle(context,restartedWorker,`http://127.0.0.1:${port}`,passed);
+ await testSavedSiteRestart(context,restartedWorker,`http://127.0.0.1:${port}`,passed);
  await context.close();
  context=await chromium.launchPersistentContext(path.join(temp,'production-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${path.resolve('extension')}`,`--load-extension=${path.resolve('extension')}`]});
  const productionWorker=context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
@@ -125,6 +128,9 @@ try {
  await context.close();
  context=await chromium.launchPersistentContext(path.join(temp,'floating-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${path.resolve('extension')}`,`--load-extension=${path.resolve('extension')}`]});
  await testRememberedMode(context,`http://127.0.0.1:${port}`,passed);
+ await context.close();
+ context=await chromium.launchPersistentContext(path.join(temp,'catalog-profile'),{executablePath,channel:executablePath?undefined:'chromium',headless:process.env.HEADED!=='1',args:['--enable-unsafe-extension-debugging',`--disable-extensions-except=${path.resolve('extension')}`,`--load-extension=${path.resolve('extension')}`]});
+ await testCatalogBrowser(context,context.serviceWorkers()[0] || await context.waitForEvent('serviceworker'),`http://127.0.0.1:${port}`,passed);
  await mkdir('test-results',{recursive:true});await writeFile('test-results/e2e.json',JSON.stringify({date:new Date().toISOString(),browser:await context.browser().version(),checks},null,2));
  console.log(`${checks.length} end-to-end checks passed.`);
 } finally {if(context)await context.close();await new Promise(resolve=>server.close(resolve));await rm(temp,{recursive:true,force:true});}

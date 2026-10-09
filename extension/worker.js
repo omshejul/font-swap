@@ -1,9 +1,20 @@
-import {getCatalog, loadGoogleFont} from './fonts.js';
+import {getCatalog, refreshCatalog, loadGoogleFont} from './fonts.js';
 import {siteOrigin, sitePattern, siteKey, savedPairs} from './sites.js';
 
 const frames = new Map();
 const selected = new Map();
 const restoring = new Map();
+let catalogRefresh;
+function startCatalogRefresh() {
+  catalogRefresh ||= refreshCatalog().then(async catalog => {
+    if (!catalog) return;
+    const message = {type:'CATALOG_CHANGED',catalog};
+    await Promise.allSettled([
+      chrome.runtime.sendMessage(message),
+      ...[...frames.keys()].map(tabId => chrome.tabs.sendMessage(tabId,message,{frameId:0})),
+    ]);
+  }).finally(() => { catalogRefresh = null; });
+}
 chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false}).catch(() => {});
 async function page(tabId, frameId, action, payload = {}) {
   const result = await chrome.tabs.sendMessage(tabId, {type:'FONT_SWAP',action,...payload}, {frameId});
@@ -126,6 +137,7 @@ async function switchMode(tabId,mode) {
   if (!['floating','sidepanel'].includes(mode)) throw new Error('Choose a panel mode.');
   // Keep open() in the dock click's original user gesture, before any await.
   if (mode==='sidepanel') await chrome.sidePanel.open({tabId});
+  startCatalogRefresh();
   const tab=await chrome.tabs.get(tabId);
   await panel({action:'cancel',tabId});
   if (mode==='floating') {
@@ -157,6 +169,7 @@ async function panel(message, permission) {
     return {html,css,icon,logo,tabId};
   }
   if (action === 'catalog') return {catalog:await getCatalog()};
+  if (action === 'open') { startCatalogRefresh(); return {}; }
   if (action === 'sample') {
     const loaded = await loadGoogleFont(message.family,[{weight:'400',style:'normal'}],true);
     return {preview:{family:loaded.family,faces:loaded.faces.map(face => ({descriptors:face.descriptors,bytes:Array.from(atob(loaded.binaries[face.id]),c=>c.charCodeAt(0))}))}};
@@ -231,6 +244,7 @@ chrome.action.onClicked.addListener(tab => chrome.storage.local.get('panelMode',
   // Chrome preserves the gesture in extension API callbacks, unlike an await continuation.
   const floating=stored.panelMode==='floating';
   const opening=floating ? openFloating(tab.id,true) : chrome.sidePanel.open({tabId:tab.id});
+  startCatalogRefresh();
   (async () => {
   try {
     await opening;
