@@ -469,17 +469,25 @@ async function choose(family, focusRow = true) {
 
 // Search
 
+function adoptCatalog(families) {
+  const activeFamily = matches[activeIndex]?.family;
+  catalog = families.map((font, index) => ({family:font.family, key:font.family.toLowerCase(), rank:font.popularity ?? index})).sort((a,b) => a.rank - b.rank);
+  if (state && !views.main.hidden) {
+    const canSearch = Boolean(state.source) && !state.picking && !busy && !pending && state.status !== 'Loading font';
+    activeIndex = activeFamily ? search(els.search.value).findIndex(font => font.family === activeFamily) : -1;
+    renderResults(canSearch);
+  }
+}
 function loadCatalog() {
   if (catalog) return catalog;
   catalogLoading ||= (async () => {
     const response = await chrome.runtime.sendMessage({ type: 'PANEL', action: 'catalog' }).catch((error) => ({ ok: false, error: error.message }));
     catalogLoading = null;
+    if (catalog) return catalog; // A refresh notification may have arrived before this response.
     if (!response || !response.ok || !Array.isArray(response.catalog)) {
       errorText = describeError((response && response.error) || 'Could not load the font list.');
     } else {
-      catalog = response.catalog
-        .map((font, index) => ({ family: font.family, key: font.family.toLowerCase(), rank: font.popularity ?? index }))
-        .sort((a, b) => a.rank - b.rank);
+      adoptCatalog(response.catalog);
     }
     if (state && !views.main.hidden) render();
     return catalog;
@@ -652,7 +660,11 @@ els.results.addEventListener('click', (event) => {
   if (option) choose(matches[Number(option.dataset.index)].family, event.detail === 0);
 });
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender.id === chrome.runtime.id && message?.type === 'CATALOG_CHANGED' && Array.isArray(message.catalog)) {
+    adoptCatalog(message.catalog);
+    return;
+  }
   if (floating && message?.type === 'HIDE_FLOATING') closeTagFilter();
   if (!message || message.type !== 'STATE_CHANGED' || message.tabId !== tabId || !message.state) return;
   if (busy) return; // the pending action returns newer state
@@ -676,5 +688,6 @@ if (!floating) {
 });
 
 loadCatalog();
+chrome.runtime.sendMessage({type:'PANEL',action:'open'}).catch(() => {});
 connect();
 })();

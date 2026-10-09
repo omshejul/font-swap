@@ -1,8 +1,69 @@
 const inFlight = new Map();
-let catalog;
+const CATALOG_URL = 'https://omshejul.com/api/swapfont/catalog';
+const WEEK = 7 * 24 * 60 * 60 * 1000, COOLDOWN = 60 * 60 * 1000;
+const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
+const CATALOG_KEYS = ['googleFontCatalog','googleFontCatalogFetchedAt','googleFontCatalogLastAttemptAt'];
+const categories = new Set(['sans-serif','serif','display','handwriting','monospace']);
+let catalog, bundled, refreshing;
+function getBundledCatalog() {
+  bundled ||= fetch(chrome.runtime.getURL('catalog.json')).then(r => r.json()).then(d => d.families);
+  return bundled;
+}
+function validCatalog(data, minimum) {
+  if (!data || data.source !== 'https://www.googleapis.com/webfonts/v1/webfonts' || typeof data.updated !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.updated)) return false;
+  const date = new Date(data.updated);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10) !== data.updated) return false;
+  if (!Array.isArray(data.families) || data.families.length < Math.ceil(minimum * 0.9) || data.families.length > 10000) return false;
+  if (new TextEncoder().encode(JSON.stringify(data)).byteLength > MAX_CATALOG_BYTES) return false;
+  const names = new Set();
+  return data.families.every(font => {
+    if (!font || typeof font.family !== 'string' || !font.family.trim() || font.family !== font.family.trim() || font.family.length > 200 || /[\u0000-\u001f\u007f]/.test(font.family) || names.has(font.family)) return false;
+    names.add(font.family);
+    return categories.has(font.category) && Number.isSafeInteger(font.popularity) && font.popularity >= 0 && Array.isArray(font.variants) && font.variants.length > 0 && font.variants.length <= 100 && font.variants.every(variant => typeof variant === 'string' && (/^(regular|italic)$/.test(variant) || /^(?:[1-9]\d{0,2}|1000)(?:italic)?$/.test(variant)));
+  });
+}
+function recent(timestamp, now, interval) {
+  return Number.isSafeInteger(timestamp) && timestamp > 0 && timestamp <= now && now - timestamp < interval;
+}
 export async function getCatalog() {
-  catalog ||= fetch(chrome.runtime.getURL('catalog.json')).then(r => r.json()).then(d => d.families);
+  catalog ||= (async () => {
+    const [fallback, stored] = await Promise.all([getBundledCatalog(), chrome.storage.local.get(CATALOG_KEYS).catch(() => ({}))]);
+    return validCatalog(stored.googleFontCatalog, fallback.length) ? stored.googleFontCatalog.families : fallback;
+  })();
   return catalog;
+}
+async function readCatalog(response) {
+  if (Number(response.headers.get('content-length')) > MAX_CATALOG_BYTES) throw new Error('Catalog too large.');
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let bytes = 0, text = '';
+  try {
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_CATALOG_BYTES) { await reader.cancel(); throw new Error('Catalog too large.'); }
+      text += decoder.decode(value, {stream:true});
+    }
+    return JSON.parse(text + decoder.decode());
+  } finally { reader.releaseLock(); }
+}
+export function refreshCatalog() {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const [fallback, stored] = await Promise.all([getBundledCatalog(), chrome.storage.local.get(CATALOG_KEYS)]);
+    const valid = validCatalog(stored.googleFontCatalog, fallback.length), now = Date.now();
+    if (valid && recent(stored.googleFontCatalogFetchedAt, now, WEEK)) return null;
+    if (recent(stored.googleFontCatalogLastAttemptAt, now, COOLDOWN)) return null;
+    await chrome.storage.local.set({googleFontCatalogLastAttemptAt:now});
+    const response = await fetch(CATALOG_URL, {credentials:'omit', referrerPolicy:'no-referrer', signal:AbortSignal.timeout(20000)});
+    if (!response.ok) return null;
+    const data = await readCatalog(response);
+    if (!validCatalog(data, Math.max(fallback.length, valid ? stored.googleFontCatalog.families.length : 0))) return null;
+    await chrome.storage.local.set({googleFontCatalog:data, googleFontCatalogFetchedAt:Date.now()});
+    catalog = Promise.resolve(data.families);
+    return data.families;
+  })().catch(() => null).finally(() => { refreshing = null; });
+  return refreshing;
 }
 function base64(buffer) {
   const bytes = new Uint8Array(buffer); let binary = '';
@@ -22,7 +83,7 @@ async function cachedFetch(url) {
   return response;
 }
 export async function loadGoogleFont(family, styles = [{weight:'400',style:'normal'}], sample = false) {
-  const item = (await getCatalog()).find(f => f.family === family);
+  const item = (await getCatalog()).find(f => f.family === family) || (await getBundledCatalog()).find(f => f.family === family);
   if (!item) throw new Error('Choose a font from the Google Fonts list.');
   const available = item.variants.map(v => ({italic:v.includes('italic') ? 1 : 0, weight:parseInt(v) || 400}));
   const warnings = [];
