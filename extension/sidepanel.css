@@ -183,11 +183,11 @@ h1 img {
 }
 
 .panel-header h1 { margin-right: auto; }
-.panel-header button + button { margin-left: -4px; }
+.panel-header :is(button, a) + :is(button, a) { margin-left: -4px; }
 .panel-header .button-small { flex: none; min-height: 28px; padding: 4px 5px; border-radius: 6px; background: transparent; white-space: nowrap; }
-.icon-button { display: grid; place-items: center; flex: none; width: 26px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
+.icon-button { display: grid; place-items: center; flex: none; width: 26px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; text-decoration: none; }
 .icon-button:hover:not(:disabled) { background: var(--surface); color: var(--text); }
-.panel-header button:hover:not(:disabled) { background: var(--header-hover); color: var(--text); }
+.panel-header :is(button, a):hover:not(:disabled) { background: var(--header-hover); color: var(--text); }
 .icon-button:disabled { opacity: 0.6; cursor: default; }
 .undo-icon { display: none; }
 

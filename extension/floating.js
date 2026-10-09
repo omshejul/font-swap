@@ -71,7 +71,7 @@
   }
   let drag=null;
   header.addEventListener('pointerdown',event=>{
-    if (event.button!==0 || (event.target.closest('button') && event.target.closest('button')!==grip)) return;
+    if (event.button!==0 || (event.target.closest('button,a') && event.target.closest('button,a')!==grip)) return;
     const bounds=host.getBoundingClientRect();
     drag={x:event.clientX-bounds.left,y:event.clientY-bounds.top};
     grip.focus({preventScroll:true});

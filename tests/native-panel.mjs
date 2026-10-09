@@ -80,6 +80,10 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.match((await pagePicker(worker,page)).text,/Pick the font to replace.*Hover text to see its font, then click it.*CancelEsc/);
  const visibleURL=await worker.evaluate(async()=> (await chrome.tabs.query({active:true,currentWindow:true}))[0].url);assert.equal(visibleURL,page.url());
  passed('production manifest toolbar gesture opens native panel and grants activeTab');
+ const feedback=await panel.evaluate("(()=>{const link=document.getElementById('feedback'),url=new URL(link.href);return {recipient:url.pathname,subject:url.searchParams.get('subject'),body:url.searchParams.get('body'),version:chrome.runtime.getManifest().version,icon:!!link.querySelector('svg'),label:link.getAttribute('aria-label')};})()");
+ assert.equal(feedback.recipient,'chromewebstore@omshejul.com');assert.equal(feedback.subject,`SwapFont feedback (v${feedback.version})`);assert(feedback.icon && feedback.label);
+ assert.match(feedback.body,/Layout: Side panel/);assert.match(feedback.body,/Website: https:\/\/www.iana.org\r\n/);assert(!feedback.body.includes('/domains/reserved'));
+ passed('side-panel feedback link prefills the running version and site origin without URL paths');
  await page.locator('h1').click();await panel.wait("document.querySelector('.pair-pending') && !document.getElementById('search').disabled");
  assert.equal(await panel.evaluate("document.querySelector('.pair-pending .pair-to').textContent"),'Choose font');
  await panel.click('.pair-pending .pair-edit');await panel.wait("document.getElementById('steps').hidden");
@@ -128,6 +132,8 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-from').textContent"),'Pick from page');
  await panel.click('.pair-awaiting .pair-from');assert.equal(await panel.evaluate("!document.getElementById('view-main').dataset.picking"),false);
  await panel.command('Emulation.setDeviceMetricsOverride',{width:240,height:800,deviceScaleFactor:1,mobile:false});
+ assert.equal(await panel.evaluate("(()=>{const title=document.querySelector('h1'),feedback=document.getElementById('feedback'),mode=document.getElementById('mode-toggle');return title.scrollWidth<=title.clientWidth && feedback.getBoundingClientRect().right<=mode.getBoundingClientRect().left && mode.getBoundingClientRect().right<=innerWidth;})()"),true,'Feedback must fit beside the full title at 240px');
+ await panel.screenshot('feedback-sidepanel-240.png');
  assert.equal(await panel.evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true);
  assert.equal(await panel.evaluate("document.querySelector('.pair-awaiting .pair-to').scrollWidth<=document.querySelector('.pair-awaiting .pair-to').clientWidth"),true);
  assert.notEqual(await panel.evaluate("getComputedStyle(document.querySelector('.pair-awaiting .pair-from'),'::after').animationName"),'none');
