@@ -1,5 +1,11 @@
 # Verification
 
+## Feedback header in v0.5.6
+
+Verified October 9, 2026 on Chrome for Testing 152.0.7977.75. Manifest checks, seven unit tests, all 58 end-to-end checks and the font flicker regression passed. Feedback uses the official Material Symbols Outlined SVG, centered in the same 26x28 control as the mode button. Light and dark floating headers and the 240px side panel were visually reviewed by Codex and Claude, with no clipping or alignment changes needed.
+
+The mailto draft includes the running version, browser, platform, layout, site origin, up to five active font pairs and any current error. Checks confirmed that URL paths are excluded, the draft updates after swapping, clicking does not drag the floating panel or cancel picking, and keyboard focus remains visible. The email client was not launched and no email was sent during testing.
+
 Verified 2026-10-08T06:06:53.629Z on macOS arm64, Node 24, Chrome for Testing 152.0.7977.75.
 
 Manifest and syntax checks passed. Five unit tests passed. All 48 end-to-end browser checks passed. Font downloads were real, and Chrome's CSS protocol confirmed Lora glyphs in the rendered heading.

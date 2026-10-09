@@ -16,6 +16,7 @@ const els = {
   remember: $('remember-site'),
   rememberRow: $('remember-row'),
   mode: $('mode-toggle'),
+  feedback: $('feedback'),
   connectError: $('connect-error'),
   retry: $('retry'),
   messagesHome: $('messages-home'),
@@ -54,6 +55,31 @@ let activeIndex = -1;
 let switchingMode = false;
 let pairsSignature = '';
 let resultsSignature = '';
+
+function updateFeedback() {
+  const manifest = chrome.runtime.getManifest();
+  const rules = state?.rules || [];
+  const details = [
+    `Extension: ${manifest.name}`,
+    `Version: ${manifest.version}`,
+    `Extension ID: ${chrome.runtime.id}`,
+    `Layout: ${floating ? 'Floating panel' : 'Side panel'}`,
+    `Browser: ${navigator.userAgent}`,
+    `Platform: ${navigator.platform}`,
+    `Language: ${navigator.language}`,
+    `Website: ${state?.siteOrigin || 'Not available'}`,
+    `Remember for this site: ${state?.remembered ? 'On' : 'Off'}`,
+    `Active swaps: ${rules.length}`,
+    ...rules.slice(0, 5).map(rule => `${rule.source} -> ${rule.destination.family}`),
+    `Status: ${state?.status || 'Connecting'}`,
+    `Date: ${new Date().toISOString()}`,
+  ];
+  if (errorText || state?.error) details.push(`Error: ${describeError(errorText || state.error)}`);
+  const body = ['What happened, or what would you like to see?', '', '', 'Steps to reproduce (if it is a bug):', '', '', '--- Diagnostics: edit or remove anything ---', ...details].join('\r\n');
+  els.feedback.href = `mailto:chromewebstore@omshejul.com?subject=${encodeURIComponent(`${manifest.name} feedback (v${manifest.version})`)}&body=${encodeURIComponent(body)}`;
+}
+els.feedback.addEventListener('click', updateFeedback);
+updateFeedback();
 
 // Messaging
 
@@ -130,6 +156,7 @@ const destinationName = (destination) => (destination && destination.family) || 
 function setState(next) {
   const previous = state;
   state = next;
+  updateFeedback();
   if (previous && previous.picking && !next.picking) {
     const changed = sourceKey(previous) !== sourceKey(next) || destinationName(previous.destination) !== destinationName(next.destination);
     if (previous.picking === 'source' && next.status === 'Choose a font') doneKey = dismissedKey = '';

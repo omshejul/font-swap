@@ -6,6 +6,8 @@ One extension includes a native side panel and a draggable floating panel. Use t
 
 The floating panel starts in the top-right and preserves the website's width. Closing cancels picking and keeps current swaps; the toolbar reopens it. Drag the header, or focus its grip and use arrow keys to move it. Notes and the repeated CSS-family explanation are removed from both modes.
 
+The header's feedback icon opens an editable email draft to chromewebstore@omshejul.com with the extension version, browser, layout, site origin, active swaps and any error. It includes no page text or URL paths. Nothing is sent until you send the email.
+
 ## Install locally
 
 1. Open `chrome://extensions` in desktop Chrome.
@@ -49,6 +51,8 @@ No account, API key, backend, analytics or remote code. The extension requests a
 Font bytes are cached in extension storage, bounded to 160 cache entries. The catalog is bundled from Google's metadata at build time; the metadata endpoint is undocumented and is not needed during normal use. Font files retain their upstream licenses.
 
 The icon uses the supplied `drawing.svg`, kept in `assets/icon.svg` and rendered with Inkscape at 16, 32, 48 and 128px.
+
+UI controls use inline SVGs. The feedback symbol is Google's [Material Symbols Outlined feedback icon](https://github.com/google/material-design-icons/blob/master/symbols/web/feedback/materialsymbolsoutlined/feedback_24px.svg), bundled with its Apache 2.0 license.
 
 ## Develop and verify
 

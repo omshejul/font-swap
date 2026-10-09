@@ -22,6 +22,7 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
   if(property==='text')return element.textContent;
   if(property==='font')return getComputedStyle(element).fontFamily;
   if(property==='overflow')return element.scrollWidth>element.clientWidth;
+  if(property==='feedback'){const link=root.getElementById('feedback'),url=new URL(link.href),title=root.querySelector('h1');return {recipient:url.pathname,body:url.searchParams.get('body'),subject:url.searchParams.get('subject'),titleFits:title.scrollWidth<=title.clientWidth,focus:root.activeElement===link && getComputedStyle(link).outlineStyle!=='none'};}
   if(property==='footer'){const link=root.querySelector('.browse-fonts'),logo=link.querySelector('canvas'),r=link.getBoundingClientRect();return{href:link.href,target:link.target,rel:link.rel,svg:!!link.querySelector('.external-link'),painted:!!logo?.getContext('2d').getImageData(0,0,logo.width,logo.height).data.some((v,i)=>i%4===3&&v>0),visible:r.bottom<=host.getBoundingClientRect().bottom};}
   const rect=host.getBoundingClientRect();
   return {hidden:!rect.width,left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width,background:getComputedStyle(host).backgroundColor,rows:root.querySelectorAll('.pair').length,source:root.querySelector('.pair-from')?.textContent,destination:root.querySelector('.pair-to')?.textContent,editing:!root.getElementById('steps').hidden,picking:!!root.getElementById('view-main').dataset.picking,loading:root.getElementById('note').classList.contains('is-loading'),note:root.getElementById('note').textContent,error:root.getElementById('error').textContent,spinner:getComputedStyle(root.getElementById('note'),'::before').animationName};
@@ -45,6 +46,11 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  assert.equal(await page.locator('[data-font-swap-panel]').evaluate(e=>e.shadowRoot),null);
  assert.match(await inspect('.panel','font'),/system-ui/);
  passed('floating production build opens an isolated page panel without changing viewport width');
+ const beforeFeedback=await inspect();
+ await worker.evaluate(async tabId=>chrome.scripting.executeScript({target:{tabId},func:()=>globalThis.__fontSwapPanelRoot.getElementById('feedback').addEventListener('click',event=>event.preventDefault(),{once:true})}),tabId);
+ await click('#feedback');const afterFeedback=await inspect(),feedback=await inspect('#feedback','feedback');
+ assert.equal(feedback.recipient,'chromewebstore@omshejul.com');assert.match(feedback.body,/Layout: Floating panel/);assert.match(feedback.body,/Browser: /);assert.equal(afterFeedback.left,beforeFeedback.left);assert.equal(afterFeedback.top,beforeFeedback.top);assert(afterFeedback.picking && feedback.titleFits);
+ passed('floating feedback opens an email draft without dragging the panel or interrupting picking');
  await page.locator('#body').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Arial');
  await page.locator('#body').click();await wait(info=>info?.source==='Arial' && info.editing);
  await worker.evaluate(()=>{const original=fetch;let release;const gate=new Promise(resolve=>release=resolve);globalThis.__restoreFloatingFetch=()=>{globalThis.fetch=original;release();};globalThis.fetch=async(...args)=>{if(String(args[0]).startsWith('https://fonts.'))await gate;return original(...args);};});
@@ -119,6 +125,8 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  const popupReady=context.waitForEvent('page');await click('.browse-fonts');const popup=await popupReady;await popup.waitForURL('https://fonts.google.com/');assert.equal(await popup.evaluate(()=>opener),null);await popup.close();await page.bringToFront();await context.unroute('https://fonts.google.com/');
  assert((await inspect()).picking,'Footer click must not pick a font');await page.keyboard.press('Escape');await wait(info=>!info.picking);
  await click('#move-panel');let footerFocused=false;for(let i=0;i<20&&!footerFocused;i++){await page.keyboard.press('Tab');footerFocused=await worker.evaluate(async tabId=>(await chrome.scripting.executeScript({target:{tabId},func:()=>{const root=globalThis.__fontSwapPanelRoot,link=root.querySelector('.browse-fonts');return root.activeElement===link && getComputedStyle(link).outlineStyle!=='none';}}))[0].result,tabId);}assert(footerFocused,'Footer must be keyboard reachable with visible focus');
+ await click('#move-panel');let feedbackFocused=false;for(let i=0;i<20&&!feedbackFocused;i++){await page.keyboard.press('Tab');feedbackFocused=(await inspect('#feedback','feedback')).focus;}assert(feedbackFocused,'Feedback must be keyboard reachable with visible focus');
+ const appliedFeedback=await inspect('#feedback','feedback');assert(appliedFeedback.body.includes(`Active swaps: 1\r\n${(await inspect()).source} -> Inter`));
  passed('floating Google Fonts footer paints under strict CSP, opens a separate tab without picking, and has visible keyboard focus');
  await click('#undo');await click('#close-panel');
  passed('floating controls and real font swaps work with frame-src none, style-src none and Trusted Types restrictions');
