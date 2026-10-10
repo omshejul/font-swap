@@ -276,8 +276,8 @@ h1 img {
 .access-toolbar-frame { fill: var(--surface); stroke: var(--border); }
 .access-address { fill: var(--bg); }
 .access-icon-halo { fill: var(--accent-soft); }
-.access-icon { fill: var(--brand-bg); stroke: var(--accent); }
-.access-icon-letter { fill: #ffffff; }
+.access-logo rect { fill: var(--brand-bg); }
+.access-icon { stroke: var(--accent); }
 .access-point { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin: 7px calc(7.62% - 8px) 0 0; color: var(--accent); font-size: 12px; }
 .access-arrow { flex: none; animation: access-arrow-nudge 1.6s ease-in-out infinite; }
 .access-hint { margin-top: 10px; font-size: 13px; }

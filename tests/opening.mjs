@@ -1,6 +1,6 @@
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,rm,access} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,rm,access,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
@@ -62,6 +62,7 @@ try {
  assert.equal(await panel.evaluate("document.getElementById('connect-error-title').textContent"),'Click the S at the top of your browser');
  assert.match(await panel.evaluate("document.getElementById('access-hint').textContent"),/puzzle piece, then SwapFont/);
  assert.equal(await panel.evaluate("!!document.querySelector('#access-guide svg') && !document.querySelector('#access-guide img, #access-guide canvas, #access-guide button, #access-guide a')"),true);
+ assert.equal(await panel.evaluate("document.querySelector('.access-logo path').getAttribute('d')"),(await readFile('extension/icons/icon.svg','utf8')).match(/<path\s+d="([^"]+)"/)[1]);
  for(const theme of ['dark','light']) for(const width of [240,320]) {
   await panel.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme},{name:'prefers-reduced-motion',value:'no-preference'}]});
   await panel.command('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:false});
