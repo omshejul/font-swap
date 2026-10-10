@@ -76,7 +76,7 @@ try {
  await worker.evaluate(()=>{chrome.scripting.executeScript=globalThis.restoreExecute;});
  passed('navigation during an unfinished opening discards old work and opens one floating panel on the new document');
  await page.goto(url+'repeated');await Promise.all([trigger(),trigger(),trigger()]);await floating();
- await page.keyboard.press('Escape');assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
+ await page.locator('[data-font-swap-picker]').waitFor();await page.keyboard.press('Escape');await page.locator('[data-font-swap-picker]').waitFor({state:'detached'});
  await page.goto('chrome://settings/');await trigger();panel=await sidebar();await panel.wait("!document.getElementById('view-error').hidden && document.getElementById('retry').hidden");
  await page.goto(url+'after-navigation');await trigger();await floating();assert.equal(await pref(),'floating');
  passed('rapid toolbar clicks and navigation leave one current panel and keep the preferred layout');
