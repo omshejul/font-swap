@@ -1,5 +1,13 @@
 # Verification
 
+## Floating default and sidebar fallback in v0.6.6
+
+Verified October 10, 2026 on Chrome for Testing 152.0.7977.75. New installs open floating; existing sidebar preferences are preserved. The toolbar starts its scripting callback directly from the original gesture, allowing a failed floating opening to open the actual native sidebar even after a forced 5.2-second delay. Fallback keeps the user's preference and offers working source-picking controls on accessible pages.
+
+Eight dedicated opening checks passed with the production manifest and real toolbar actions. New Tab, Settings and Chrome Web Store show the restricted-page explanation without Retry. An unknown injection failure offers Retry, keeps technical details in feedback diagnostics and recovers. google.com remains supported. Navigation during an unfinished opening, rapid repeated actions and later navigation leave one current panel and no stale picking. Floating injections target the originating document; navigation invalidates old attempts before document unload can start a stale fallback.
+
+Manifest checks, 124 unit tests, all 77 existing end-to-end checks and the font flicker regression also passed. Both themes retain the existing sidebar error layout and footer. No permissions or dependencies were added.
+
 ## Custom tag labels in v0.6.5
 
 Verified October 10, 2026. Unknown and custom tags render their name once, using the available row width with ellipsis and a full-name tooltip. Standard tags retain their friendly descriptions. Counts and checkboxes stay aligned; tag matching, search and saved scopes are unchanged.

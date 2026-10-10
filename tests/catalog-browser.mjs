@@ -124,6 +124,7 @@ export async function testCatalogBrowser(context,worker,fixtureURL,passed) {
    if(await chrome.permissions.contains({origins:['https://omshejul.com/*']}))throw new Error('Catalog profile already has optional backend permission');
    if((await chrome.storage.local.get('googleFontCatalog')).googleFontCatalog)throw new Error('Catalog profile was not clean');
    await new Promise(resolve=>{const ready=()=>chrome.action.onClicked.hasListeners()?resolve():setTimeout(ready,20);ready();});
+   await chrome.storage.local.set({panelMode:'sidepanel'});
   },ENDPOINT);
   assert.deepEqual(await context.cookies('https://omshejul.com'),[]);
   await trigger();let docked=await nativePanel();

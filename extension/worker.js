@@ -4,6 +4,8 @@ import {siteOrigin, sitePattern, siteKey, savedPairs} from './sites.js';
 const frames = new Map();
 const selected = new Map();
 const restoring = new Map();
+const floatingOpenings = new Map();
+const toolbarOpenings = new Map();
 let catalogRefresh;
 function startCatalogRefresh() {
   catalogRefresh ||= refreshCatalog().then(async catalog => {
@@ -34,12 +36,25 @@ async function remember(tabId, frameId) {
   selected.set(tabId,frameId);
   await chrome.storage.session.set({[`frame:${tabId}`]:frameId});
 }
+function restrictedPage(url) {
+  if (!url) return false;
+  try {
+    const parsed=new URL(url);
+    return !['http:','https:'].includes(parsed.protocol) || parsed.hostname==='chromewebstore.google.com' || (parsed.hostname==='chrome.google.com' && parsed.pathname.startsWith('/webstore'));
+  } catch { return true; }
+}
+function accessError(error,url) {
+  if (error.code) return error;
+  const message=error.message || String(error);
+  const code=restrictedPage(url) || /extensions gallery cannot be scripted|cannot access (?:a )?(?:chrome|chrome-extension|edge|brave|devtools):|cannot access.*(?:web store|pdf viewer)/i.test(message) ? 'PAGE_RESTRICTED' : /extension manifest must request permission|missing host permission/i.test(message) ? 'PAGE_ACCESS_REQUIRED' : 'PAGE_CONNECTION_FAILED';
+  return Object.assign(new Error(message),{code});
+}
 async function connect(tabId) {
   if (!Number.isInteger(tabId)) throw new Error('Open a website, then click the SwapFont toolbar button.');
   await restoring.get(tabId);
   const tab = await chrome.tabs.get(tabId);
-  if(!tab.url) throw new Error('Click the SwapFont toolbar button on this website to allow access.');
-  if (!/^https?:\/\//.test(tab.url || '')) throw new Error('SwapFont works on regular websites. Browser pages, PDFs and the Chrome Web Store are not supported.');
+  if(!tab.url) throw Object.assign(new Error('The active tab URL is unavailable.'),{code:'PAGE_ACCESS_REQUIRED'});
+  if (restrictedPage(tab.url)) throw accessError(new Error('Browser restrictions prevent scripting this URL.'),tab.url);
   const candidates = await chrome.webNavigation.getAllFrames({tabId}) || [{frameId:0}];
   const attempts = await Promise.allSettled(candidates.map(async ({frameId}) => {
     await chrome.scripting.executeScript({target:{tabId,frameIds:[frameId]},files:['font-utils.js','content.js']});
@@ -47,7 +62,7 @@ async function connect(tabId) {
     return frameId;
   }));
   const allowed = attempts.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
-  if (!allowed.includes(0)) throw new Error('Click the SwapFont toolbar button on this website to allow access. Some protected pages cannot be changed.');
+  if (!allowed.includes(0)) throw accessError(attempts[candidates.findIndex(frame=>frame.frameId===0)]?.reason || new Error('The main frame is unavailable.'),tab.url);
   frames.set(tabId,{allowed,blocked:candidates.length-allowed.length});
   if (!allowed.includes(await selectedFrame(tabId))) await remember(tabId,0);
   return state(tabId);
@@ -116,12 +131,21 @@ async function restoreSite({tabId,documentId,url}) {
   }
 }
 
-async function openFloating(tabId, startPicking=false) {
-  const current=await connect(tabId);
-  await chrome.scripting.executeScript({target:{tabId},files:['floating.js']});
-  await chrome.scripting.executeScript({target:{tabId},files:['sidepanel.js']});
-  if (startPicking && !current.source) await panel({action:'pick',tabId,mode:'source'});
-  else await broadcast(tabId);
+async function openFloating(tabId, startPicking=false, documentId) {
+  if (floatingOpenings.has(tabId)) return floatingOpenings.get(tabId);
+  const target={tabId,...(documentId ? {documentIds:[documentId]} : {})};
+  const work=(async()=>{
+    const current=await connect(tabId);
+    await chrome.scripting.executeScript({target,files:['floating.js']});
+    await chrome.scripting.executeScript({target,files:['sidepanel.js']});
+    const mounted=await chrome.scripting.executeScript({target,func:()=>Boolean(globalThis.__fontSwapPanelRoot?.__fontSwapMounted && globalThis.__fontSwapPanelRoot.host.isConnected)});
+    if (!mounted[0]?.result) throw new Error('The floating panel did not mount.');
+    if (floatingOpenings.get(tabId)!==work) throw new Error('The page changed while SwapFont was opening.');
+    if (startPicking && !current.source) await panel({action:'pick',tabId,mode:'source'});
+    else await broadcast(tabId);
+  })();
+  floatingOpenings.set(tabId,work);
+  return work.finally(()=>{if(floatingOpenings.get(tabId)===work) floatingOpenings.delete(tabId);});
 }
 async function hideFloating(windowId) {
   const tabs=await chrome.tabs.query({windowId});
@@ -165,6 +189,10 @@ async function panel(message, permission) {
     return {state:result};
   }
   if (action === 'mode') return switchMode(tabId,message.mode);
+  if (action === 'launch-floating') {
+    if ((await chrome.storage.local.get('panelMode')).panelMode==='sidepanel') return {sidepanel:true};
+    await openFloating(tabId,true,message.documentId); return {};
+  }
   if (action === 'ui') {
     const [html,css,icon] = await Promise.all(['sidepanel.html','sidepanel.css','icons/icon.svg'].map(file=>fetch(chrome.runtime.getURL(file)).then(r=>r.text())));
     const logo = Array.from(new Uint8Array(await fetch(chrome.runtime.getURL('icons/google-fonts.png')).then(r=>r.arrayBuffer())));
@@ -219,7 +247,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
   const permission=trustedPanel && message.action==='remember' && message.enabled && origin ? chrome.permissions.request({origins:[sitePattern(origin)]}) : Promise.resolve(false);
   if (message.type === 'PANEL' && !sender.tab && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message,permission);
   // Floating controls are trusted content-script code. Always use the sender's tab.
-  else if (message.type === 'PANEL' && sender.tab && sender.frameId === 0 && !sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel({...message,tabId:sender.tab.id},permission);
+  else if (message.type === 'PANEL' && sender.tab && sender.frameId === 0 && !sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel({...message,tabId:sender.tab.id,documentId:sender.documentId},permission);
   // Extension pages opened as a tab also carry sender.tab.
   else if (message.type === 'PANEL' && sender.url?.startsWith(chrome.runtime.getURL(''))) work = panel(message,permission);
   else if (message.type === 'FONT_SWAP_CSS' && sender.tab) work = (async () => {
@@ -242,33 +270,47 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
   work.then(value=>respond({ok:true,...value}),error=>respond({ok:false,error:error.message || 'SwapFont could not complete this action.',...(error.code ? {code:error.code} : {})}));
   return true;
 });
-chrome.action.onClicked.addListener(tab => chrome.storage.local.get('panelMode', stored => {
-  // Chrome preserves the gesture in extension API callbacks, unlike an await continuation.
-  const floating=stored.panelMode==='floating';
-  const opening=floating ? openFloating(tab.id,true) : chrome.sidePanel.open({tabId:tab.id});
+chrome.action.onClicked.addListener(tab => {
+  const attempt={};toolbarOpenings.set(tab.id,attempt);
   startCatalogRefresh();
-  (async () => {
-  try {
-    await opening;
-    if (floating) {
-      await closeSidePanel(tab.windowId);
-    } else {
+  const report=async error=>{
+    await chrome.action.setBadgeText({tabId:tab.id,text:error ? '!' : ''});
+    await chrome.action.setTitle({tabId:tab.id,title:error ? 'Open SwapFont for page access details' : 'Open SwapFont'});
+    if (error) console.warn('SwapFont opening:',error.message);
+  };
+  const sidebar=startPicking=>{
+    const cleanup=Promise.allSettled((frames.get(tab.id)?.allowed || [0]).map(id=>page(tab.id,id,'cancel')));
+    // Call synchronously in the extension API callback's toolbar gesture.
+    const opening=chrome.sidePanel.open({tabId:tab.id});
+    (async()=>{
+      await opening;
+      await cleanup;
       await hideFloating(tab.windowId);
       const current=await connect(tab.id);
-      if (!current.source) await panel({action:'pick',tabId:tab.id,mode:'source'});
+      if (startPicking && !current.source) await panel({action:'pick',tabId:tab.id,mode:'source'});
       else await broadcast(tab.id);
-    }
-    await chrome.action.setBadgeText({tabId:tab.id,text:''});
-    await chrome.action.setTitle({tabId:tab.id,title:'Open SwapFont'});
-  } catch (error) {
-    await chrome.action.setBadgeText({tabId:tab.id,text:'!'});
-    await chrome.action.setTitle({tabId:tab.id,title:error.message});
-  }
-  })();
-}));
-chrome.tabs.onRemoved.addListener(tabId => { frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); });
+      await report();
+    })().catch(report);
+  };
+  if (restrictedPage(tab.url)) { sidebar(false); return; }
+  // The callback keeps Chrome's gesture across the asynchronous floating attempt.
+  // Opening the sidebar from a promise catch after injection does not.
+  chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>chrome.runtime.sendMessage({type:'PANEL',action:'launch-floating'})},results=>{
+    const error=chrome.runtime.lastError;
+    if (toolbarOpenings.get(tab.id)!==attempt) return;
+    toolbarOpenings.delete(tab.id);
+    const result=results?.[0]?.result;
+    if (error || !result?.ok || result.sidepanel) { sidebar(Boolean(result?.sidepanel)); return; }
+    closeSidePanel(tab.windowId).catch(()=>{});
+    report();
+  });
+});
+chrome.tabs.onRemoved.addListener(tabId => { floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); });
+chrome.webNavigation.onBeforeNavigate.addListener(({tabId,frameId})=>{
+  if (frameId===0) { floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); }
+});
 chrome.webNavigation.onCommitted.addListener(({tabId,frameId}) => {
-  if (frameId === 0) { frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); }
+  if (frameId === 0) { floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); }
 });
 chrome.webNavigation.onDOMContentLoaded.addListener(details => {
   if (details.frameId!==0) return;

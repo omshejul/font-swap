@@ -20,6 +20,7 @@ const els = {
   mode: $('mode-toggle'),
   feedback: $('feedback'),
   connectError: $('connect-error'),
+  connectErrorTitle: $('connect-error-title'),
   retry: $('retry'),
   messagesHome: $('messages-home'),
   pairs: $('pairs'),
@@ -51,6 +52,7 @@ let state = null;
 let busy = false;
 let pending = '';
 let errorText = '';
+let connectionDiagnostic = '';
 let rememberDeniedOrigin = '';
 let noteText = '';
 let dismissedKey = '';
@@ -98,7 +100,7 @@ function updateFeedback() {
     `Status: ${state?.status || 'Connecting'}`,
     `Date: ${new Date().toISOString()}`,
   ];
-  if (errorText || state?.error) details.push(`Error: ${describeError(errorText || state.error)}`);
+  if (connectionDiagnostic || errorText || state?.error) details.push(`Error: ${connectionDiagnostic || describeError(errorText || state.error)}`);
   const body = ['Feedback:', '', '', '--- Diagnostics: edit or remove anything ---', ...details].join('\r\n');
   els.feedback.href = `mailto:chromewebstore@omshejul.com?subject=${encodeURIComponent(`${manifest.name} feedback (v${manifest.version})`)}&body=${encodeURIComponent(body)}`;
 }
@@ -145,6 +147,7 @@ async function connect() {
   state = null;
   busy = false;
   pending = errorText = rememberDeniedOrigin = noteText = doneKey = dismissedKey = '';
+  connectionDiagnostic = '';
   showView('loading');
   let tab;
   try {
@@ -161,7 +164,12 @@ async function connect() {
   const response = tabId === null ? { ok: false, error: 'Open a website first.' } : await send('connect');
   if (response.stale || epoch !== tabEpoch || state !== priorState) return;
   if (!response.ok || !response.state) {
-    els.connectError.textContent = describeError(response.error);
+    connectionDiagnostic = response.error || 'The page connection returned no state.';
+    const restricted=response.code==='PAGE_RESTRICTED', missingAccess=response.code==='PAGE_ACCESS_REQUIRED';
+    els.connectErrorTitle.textContent = restricted ? "Fonts can't be changed here" : missingAccess ? 'Allow SwapFont on this page' : "Couldn't connect to this page";
+    els.connectError.textContent = restricted ? 'Browsers block extensions on built-in pages, web stores, and PDF viewers. Open a regular website, such as google.com, then click the SwapFont icon.' : missingAccess ? 'SwapFont does not have access to this page yet. Click the SwapFont icon in the toolbar to allow it.' : 'The page may still be loading. Wait for it to finish, then press Retry. If that fails, reload the page and retry.';
+    els.retry.hidden = restricted;
+    updateFeedback();
     showView('error');
     return;
   }
