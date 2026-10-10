@@ -45,18 +45,20 @@ try {
  await page.keyboard.press('Escape');await panel.screenshot('opening-fallback-controls.png');
  await worker.evaluate(()=>{chrome.scripting.executeScript=globalThis.restoreExecute;});
  passed('floating failure delayed beyond five seconds opens a working sidebar using the toolbar gesture, with preference preserved and no stray picking');
+ await worker.evaluate(()=>{globalThis.restoreTabGet=chrome.tabs.get;chrome.tabs.get=async id=>({...await globalThis.restoreTabGet(id),url:undefined});});
  for(const target of ['chrome://newtab','chrome://settings/','https://chromewebstore.google.com/']) {
   await page.goto(target);await trigger();panel=await sidebar();await panel.wait("!document.getElementById('view-error').hidden && document.getElementById('retry').hidden");
   assert.match(await panel.evaluate("document.getElementById('connect-error').textContent"),/regular website|website/i);
   assert.equal(await pref(),'floating');await noPicker();
   await panel.screenshot(`opening-restricted-${target.startsWith('https')?'store':target.includes('settings')?'settings':'newtab'}.png`);
  }
+ await worker.evaluate(()=>{chrome.tabs.get=globalThis.restoreTabGet;});
  passed('New Tab, Settings and Chrome Web Store show a restricted-page explanation without Retry');
  await page.goto(url+'temporary');
- await worker.evaluate(()=>{globalThis.restoreExecute=chrome.scripting.executeScript;chrome.scripting.executeScript=function(options,...args){if(options.files?.includes('content.js'))return Promise.reject(new Error('Unexpected injection transport failure ABC123'));return globalThis.restoreExecute.call(this,options,...args);};});
+ await worker.evaluate(()=>{globalThis.restoreExecute=chrome.scripting.executeScript;chrome.scripting.executeScript=function(options,...args){if(options.files?.includes('content.js'))return Promise.reject(new Error('Unexpected injection transport failure ABC123 at https://private.example/account/secret?token=hidden'));return globalThis.restoreExecute.call(this,options,...args);};});
  await trigger();panel=await sidebar();await panel.wait("!document.getElementById('view-error').hidden && !document.getElementById('retry').hidden");
  const ui=await panel.evaluate("document.getElementById('view-error').textContent");assert(!/ABC123|protected|restricted|manifest|transport/.test(ui));
- const feedback=await panel.evaluate("new URL(document.getElementById('feedback').href).searchParams.get('body')");assert.match(feedback,/ABC123/);
+ const feedback=await panel.evaluate("new URL(document.getElementById('feedback').href).searchParams.get('body')");assert.match(feedback,/ABC123/);assert(!/account\/secret|token=hidden/.test(feedback));
  await noPicker();await panel.screenshot('opening-temporary.png');
  await worker.evaluate(()=>{chrome.scripting.executeScript=globalThis.restoreExecute;});
  await panel.click('#retry');await panel.wait("!document.getElementById('view-main').hidden");

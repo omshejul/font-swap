@@ -6,6 +6,7 @@ const selected = new Map();
 const restoring = new Map();
 const floatingOpenings = new Map();
 const toolbarOpenings = new Map();
+const injectionFailures = new Map();
 let catalogRefresh;
 function startCatalogRefresh() {
   catalogRefresh ||= refreshCatalog().then(async catalog => {
@@ -46,14 +47,15 @@ function restrictedPage(url) {
 function accessError(error,url) {
   if (error.code) return error;
   const message=error.message || String(error);
-  const code=restrictedPage(url) || /extensions gallery cannot be scripted|cannot access (?:a )?(?:chrome|chrome-extension|edge|brave|devtools):|cannot access.*(?:web store|pdf viewer)/i.test(message) ? 'PAGE_RESTRICTED' : /extension manifest must request permission|missing host permission/i.test(message) ? 'PAGE_ACCESS_REQUIRED' : 'PAGE_CONNECTION_FAILED';
+  const code=restrictedPage(url) || /extensions gallery cannot be scripted|cannot access.*(?:chrome|chrome-extension|edge|brave|devtools):|cannot access.*(?:web store|pdf viewer)/i.test(message) ? 'PAGE_RESTRICTED' : /extension manifest must request permission|missing host permission/i.test(message) ? 'PAGE_ACCESS_REQUIRED' : 'PAGE_CONNECTION_FAILED';
   return Object.assign(new Error(message),{code});
 }
 async function connect(tabId) {
   if (!Number.isInteger(tabId)) throw new Error('Open a website, then click the SwapFont toolbar button.');
   await restoring.get(tabId);
   const tab = await chrome.tabs.get(tabId);
-  if(!tab.url) throw Object.assign(new Error('The active tab URL is unavailable.'),{code:'PAGE_ACCESS_REQUIRED'});
+  const injectionFailure=injectionFailures.get(tabId);
+  if(!tab.url) throw injectionFailure || Object.assign(new Error('The active tab URL is unavailable.'),{code:'PAGE_ACCESS_REQUIRED'});
   if (restrictedPage(tab.url)) throw accessError(new Error('Browser restrictions prevent scripting this URL.'),tab.url);
   const candidates = await chrome.webNavigation.getAllFrames({tabId}) || [{frameId:0}];
   const attempts = await Promise.allSettled(candidates.map(async ({frameId}) => {
@@ -63,6 +65,7 @@ async function connect(tabId) {
   }));
   const allowed = attempts.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
   if (!allowed.includes(0)) throw accessError(attempts[candidates.findIndex(frame=>frame.frameId===0)]?.reason || new Error('The main frame is unavailable.'),tab.url);
+  injectionFailures.delete(tabId);
   frames.set(tabId,{allowed,blocked:candidates.length-allowed.length});
   if (!allowed.includes(await selectedFrame(tabId))) await remember(tabId,0);
   return state(tabId);
@@ -271,6 +274,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
   return true;
 });
 chrome.action.onClicked.addListener(tab => {
+  injectionFailures.delete(tab.id);
   const attempt={};toolbarOpenings.set(tab.id,attempt);
   startCatalogRefresh();
   const report=async error=>{
@@ -292,22 +296,26 @@ chrome.action.onClicked.addListener(tab => {
       await report();
     })().catch(report);
   };
-  if (restrictedPage(tab.url)) { sidebar(false); return; }
+  if (restrictedPage(tab.url)) {
+    injectionFailures.set(tab.id,accessError(new Error('Browser restrictions prevent scripting this URL.'),tab.url));
+    sidebar(false); return;
+  }
   // The callback keeps Chrome's gesture across the asynchronous floating attempt.
   // Opening the sidebar from a promise catch after injection does not.
   chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>chrome.runtime.sendMessage({type:'PANEL',action:'launch-floating'})},results=>{
     const error=chrome.runtime.lastError;
     if (toolbarOpenings.get(tab.id)!==attempt) return;
     toolbarOpenings.delete(tab.id);
+    if (error) injectionFailures.set(tab.id,accessError(error,tab.url));
     const result=results?.[0]?.result;
     if (error || !result?.ok || result.sidepanel) { sidebar(Boolean(result?.sidepanel)); return; }
     closeSidePanel(tab.windowId).catch(()=>{});
     report();
   });
 });
-chrome.tabs.onRemoved.addListener(tabId => { floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); });
+chrome.tabs.onRemoved.addListener(tabId => { injectionFailures.delete(tabId); floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); });
 chrome.webNavigation.onBeforeNavigate.addListener(({tabId,frameId})=>{
-  if (frameId===0) { floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); }
+  if (frameId===0) { injectionFailures.delete(tabId); floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); }
 });
 chrome.webNavigation.onCommitted.addListener(({tabId,frameId}) => {
   if (frameId === 0) { floatingOpenings.delete(tabId); toolbarOpenings.delete(tabId); frames.delete(tabId); selected.delete(tabId); chrome.storage.session.remove(`frame:${tabId}`); }

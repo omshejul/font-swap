@@ -164,7 +164,7 @@ async function connect() {
   const response = tabId === null ? { ok: false, error: 'Open a website first.' } : await send('connect');
   if (response.stale || epoch !== tabEpoch || state !== priorState) return;
   if (!response.ok || !response.state) {
-    connectionDiagnostic = response.error || 'The page connection returned no state.';
+    connectionDiagnostic = (response.error || 'The page connection returned no state.').replace(/https?:\/\/[^\s"'<>]+/g,url=>{try{return new URL(url).origin;}catch{return '[URL]';}});
     const restricted=response.code==='PAGE_RESTRICTED', missingAccess=response.code==='PAGE_ACCESS_REQUIRED';
     els.connectErrorTitle.textContent = restricted ? "Fonts can't be changed here" : missingAccess ? 'Allow SwapFont on this page' : "Couldn't connect to this page";
     els.connectError.textContent = restricted ? 'Browsers block extensions on built-in pages, web stores, and PDF viewers. Open a regular website, such as google.com, then click the SwapFont icon.' : missingAccess ? 'SwapFont does not have access to this page yet. Click the SwapFont icon in the toolbar to allow it.' : 'The page may still be loading. Wait for it to finish, then press Retry. If that fails, reload the page and retry.';
