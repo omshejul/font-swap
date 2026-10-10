@@ -55,9 +55,10 @@ async function connect(tabId) {
   await restoring.get(tabId);
   const tab = await chrome.tabs.get(tabId);
   const injectionFailure=injectionFailures.get(tabId);
-  if(!tab.url) throw injectionFailure || Object.assign(new Error('The active tab URL is unavailable.'),{code:'PAGE_ACCESS_REQUIRED'});
+  if(!tab.url && injectionFailure) throw injectionFailure;
   if (restrictedPage(tab.url)) throw accessError(new Error('Browser restrictions prevent scripting this URL.'),tab.url);
   const candidates = await chrome.webNavigation.getAllFrames({tabId}) || [{frameId:0}];
+  if (!candidates.some(frame=>frame.frameId===0)) candidates.unshift({frameId:0});
   const attempts = await Promise.allSettled(candidates.map(async ({frameId}) => {
     await chrome.scripting.executeScript({target:{tabId,frameIds:[frameId]},files:['font-utils.js','content.js']});
     await page(tabId,frameId,'ping');
@@ -294,7 +295,10 @@ chrome.action.onClicked.addListener(tab => {
       if (startPicking && !current.source) await panel({action:'pick',tabId:tab.id,mode:'source'});
       else await broadcast(tab.id);
       await report();
-    })().catch(report);
+    })().catch(error=>{
+      chrome.runtime.sendMessage({type:'RECONNECT_PANEL',tabId:tab.id}).catch(()=>{});
+      report(error);
+    });
   };
   if (restrictedPage(tab.url)) {
     injectionFailures.set(tab.id,accessError(new Error('Browser restrictions prevent scripting this URL.'),tab.url));
