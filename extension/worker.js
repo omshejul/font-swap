@@ -213,8 +213,18 @@ async function panel(message, permission) {
   const frameId = await selectedFrame(tabId);
   if (action === 'state') return {state:await state(tabId)};
   if (action === 'pick' || action === 'cancel') {
-    const results = await Promise.allSettled((action==='pick' && message.mode==='destination' ? [frameId] : frames.get(tabId).allowed).map(id => page(tabId,id,action,{mode:message.mode})));
-    if (results.every(r=>r.status === 'rejected')) throw new Error('The page changed. Reopen SwapFont to reconnect.');
+    if (action==='pick') await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'cancel')));
+    const targetFrame=message.mode==='tag' ? message.frameId : frameId;
+    if (action==='pick' && message.mode==='tag') {
+      if (!frames.get(tabId).allowed.includes(targetFrame)) throw new Error('This frame is no longer available. Pick text again.');
+      await remember(tabId,targetFrame);
+      if (targetFrame!==0) await page(tabId,0,'tag-guide');
+    }
+    const results = await Promise.allSettled((action==='pick' && ['destination','tag'].includes(message.mode) ? [targetFrame] : frames.get(tabId).allowed).map(id => page(tabId,id,action,{mode:message.mode,ruleId:message.ruleId})));
+    if (results.every(r=>r.status === 'rejected')) {
+      if (message.mode==='tag') await page(tabId,0,'cancel').catch(()=>{});
+      throw new Error('The page changed. Reopen SwapFont to reconnect.');
+    }
   } else if (action === 'preview') {
     const destination = message.destination;
     if (!destination || !['google','page'].includes(destination.kind) || typeof destination.family !== 'string' || destination.family.length > 200) throw new Error('Choose a destination font.');
@@ -261,9 +271,10 @@ chrome.runtime.onMessage.addListener((message,sender,respond) => {
     return {};
   })();
   else if (message.type === 'FONT_SWAP_EVENT' && sender.tab) work = (async () => {
-    if (message.event === 'picked' || message.event === 'cancelled') {
+    if (['picked','cancelled','tags-picked'].includes(message.event)) {
       if (message.event === 'picked') await remember(sender.tab.id,sender.frameId);
       await Promise.allSettled((frames.get(sender.tab.id)?.allowed || []).filter(id=>id!==sender.frameId).map(id=>page(sender.tab.id,id,'cancel')));
+      if (message.event==='tags-picked') await saveSite(sender.tab.id,await state(sender.tab.id));
     } else if(message.event==='destination-picked' && sender.frameId===await selectedFrame(sender.tab.id)) {
       try { await panel({action:'preview',tabId:sender.tab.id,destination:message.destination,scope:'all'}); }
       catch(error) { await page(sender.tab.id,sender.frameId,'failure',{error:error.message}).catch(()=>{}); }

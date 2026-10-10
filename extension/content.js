@@ -8,7 +8,7 @@
   let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
   let revision = 0, styleRevision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
-  let tooltip = null, pickerBadge = null, badgeLabel = null, failureMessage = '';
+  let tooltip = null, pickerBadge = null, badgeLabel = null, badgeHint = null, pickRuleId = '', failureMessage = '';
   let loadingBadge = null, loadingLabel, loadingToken = null, loadingFamily = '';
   let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
   const attentionTiming = {page:500, dialogue:400, delay:100, exit:200, reduced:500};
@@ -157,9 +157,9 @@
     if(timer) return;
     timer=setTimeout(()=>{timer=null;serialize(async()=>{ await refresh(); announce('changed'); }).catch(()=>{});},150);
   }
-  function showPickerBadge() {
+  function showPickerBadge(mode=picking) {
     // Source picking spans frames. Show its instruction once on the main page.
-    if (window!==window.top && picking!=='destination') { pickerBadge?.remove(); return; }
+    if (window!==window.top && mode!=='destination') { pickerBadge?.remove(); return; }
     if (!pickerBadge) {
       pickerBadge=document.createElement('div'); pickerBadge.setAttribute('data-font-swap-picker',''); pickerBadge.setAttribute('role','region');pickerBadge.setAttribute('aria-label','Font picker');
       const styles={all:'initial',position:'fixed',left:'50%',bottom:'20px',transform:'translateX(-50%)','z-index':'2147483646',display:'block','pointer-events':'auto',background:'#2c2c2c',color:'#fff',font:'12px/16px system-ui, sans-serif',padding:'12px','border-radius':'8px',border:'1px solid #ffffff24','box-shadow':'0 4px 16px #0003',width:'max-content','max-width':'calc(100vw - 24px)','box-sizing':'border-box'};
@@ -173,19 +173,21 @@
       }
       badgeLabel=document.createElement('span');
       badgeLabel.setAttribute('role','status');badgeLabel.style.cssText='display:block;font-size:13px;line-height:16px;font-weight:600';
-      const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.setAttribute('aria-label','Cancel font picking');
+      const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.setAttribute('aria-label','Cancel picking');
       cancel.style.cssText='all:unset;display:inline-flex;align-items:center;align-self:center;gap:8px;box-sizing:border-box;height:28px;cursor:pointer;padding:0 8px;border-radius:6px;background:#ffffff14;color:#fff;font:inherit;flex:none;margin-left:4px';
       cancel.addEventListener('pointerenter',()=>{cancel.style.background='#ffffff24';});cancel.addEventListener('pointerleave',()=>{cancel.style.background='#ffffff14';});
       cancel.addEventListener('focus',()=>{cancel.style.outline='2px solid #8ab4f8';cancel.style.outlineOffset='2px';});cancel.addEventListener('blur',()=>{cancel.style.outline='';});
       cancel.addEventListener('click',event=>{event.stopPropagation();stopPicking();status='Picker cancelled';announce('cancelled');});
       const escape=document.createElement('kbd');escape.textContent='Esc';escape.setAttribute('aria-hidden','true');escape.style.cssText='font:11px/16px system-ui,sans-serif;color:#b3b3b3;border:1px solid #ffffff33;border-radius:4px;padding:0 3px';cancel.append(escape);
       const hint=document.createElement('div');hint.textContent='Hover text to see its font, then click it.';hint.style.cssText='color:#b3b3b3;margin-top:4px';
+      badgeHint=hint;
       const text=document.createElement('div');text.style.cssText='flex:1;min-width:0;max-width:240px';text.append(badgeLabel,hint);
       badgeAttention=document.createElement('div');badgeAttention.style.cssText='position:absolute;inset:0;border-radius:inherit;background:rgba(66,133,244,.3);opacity:0;pointer-events:none';
       const row=document.createElement('div');row.style.cssText='position:relative;display:flex;align-items:flex-start;gap:8px';row.append(icon,text,cancel);
       root.append(badgeAttention,row);
     }
-    badgeLabel.textContent=picking==='destination'?'Pick the replacement font':'Pick the font to replace';
+    badgeLabel.textContent=mode==='tag'?'Pick a tag':mode==='destination'?'Pick the replacement font':'Pick the font to replace';
+    badgeHint.textContent=mode==='tag'?'Hover text to see its tag, then click it.':'Hover text to see its font, then click it.';
     document.documentElement.append(pickerBadge);
   }
   function showLoading(family,token) {
@@ -207,8 +209,8 @@
     loadingToken=token;loadingLabel.textContent=`Loading ${family}`;document.documentElement.append(loadingBadge);
   }
   function stopPicking() {
-    if (picking) clearAttention(true);
-    picking=null; unhighlight(); pickerBadge?.remove();
+    if (picking || pickerBadge?.isConnected) clearAttention(true);
+    picking=null; pickRuleId=''; unhighlight(); pickerBadge?.remove();
   }
   function clearAttention(fade=false) {
     clearTimeout(attentionTimer); attentionTimer=null;
@@ -265,7 +267,7 @@
       document.documentElement.append(tooltip);
     }
     const record=records.find(r=>r.element===element);
-    tooltip.textContent=(!compared && ruleFor(record)?.destination.family) || record?.family || U.parseStack(getComputedStyle(element).fontFamily)[0];
+    tooltip.textContent=picking==='tag' ? `<${element.localName}>` : (!compared && ruleFor(record)?.destination.family) || record?.family || U.parseStack(getComputedStyle(element).fontFamily)[0];
     const bounds=tooltip.getBoundingClientRect();
     tooltip.style.setProperty('left',`${Math.max(8,Math.min(event.clientX+14,innerWidth-bounds.width-8))}px`,'important');
     tooltip.style.setProperty('top',`${Math.max(8,Math.min(event.clientY+18,innerHeight-bounds.height-8))}px`,'important');
@@ -276,7 +278,9 @@
     // Closed shadow roots hide their child nodes from composedPath.
     let shadow;
     while ((shadow=shadowOf(element))) { const inside=shadow.elementFromPoint(event.clientX,event.clientY); if (!inside || inside===element) break; element=inside; }
+    if (picking==='tag' && (element.namespaceURI!=='http://www.w3.org/1999/xhtml' || element.matches('html,body,script,style,noscript,template,head,canvas'))) return null;
     while (element && element!==document.documentElement) {
+      if (picking==='tag' && element.localName==='body') return null;
       if (textOf(element) && !U.protectedFont(U.parseStack(getComputedStyle(element).fontFamily)[0] || '',textOf(element))) return element;
       element=element.parentElement || element.getRootNode().host;
     }
@@ -300,8 +304,17 @@
     if (!picking) return;
     const element=locate(event); if (!element) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    const mode=picking, visibleRule=!compared && ruleFor(records.find(r=>r.element===element)); stopPicking();
+    const mode=picking, tagRuleId=pickRuleId, visibleRule=!compared && ruleFor(records.find(r=>r.element===element)); stopPicking();
     serialize(async()=>{
+      if (mode==='tag') {
+        const rule=rules.find(rule=>rule.id===tagRuleId); if (!rule) return;
+        const tag=element.localName, choices=tagOptions(rule);
+        const all=rule.tags==null || (choices.length>0 && choices.every(choice=>rule.tags.includes(choice.tag)));
+        const duplicate=!all && rule.tags.includes(tag);
+        rule.tags=U.normalizeTags(all ? [tag] : [...rule.tags,tag]);
+        revision++; await paint(); status=all ? `Now applies to ${tag} only` : duplicate ? `${tag} is already picked` : `Added ${tag}`;
+        announce('tags-picked'); return;
+      }
       await clean(); scan();
       const record=records.find(r=>r.element===element);
       if (!record) { await paint(); status='Pick visible text instead of an image or icon.'; announce('changed'); return; }
@@ -322,7 +335,7 @@
       }
     }).catch(error=>{failureMessage=status=error.message; announce('changed');});
   },true);
-  document.addEventListener('keydown',event=>{ if (event.key==='Escape' && picking) { stopPicking(); status='Picker cancelled'; announce('cancelled'); } },true);
+  document.addEventListener('keydown',event=>{ if (event.key==='Escape' && (picking || pickerBadge?.isConnected)) { stopPicking(); status='Picker cancelled'; announce('cancelled'); } },true);
   async function loadFaces(destination,fontData) {
     let loaded=[], nextAlias='';
     if (destination.kind==='google') {
@@ -357,6 +370,7 @@
   }
   async function command(message) {
     if (message.action==='ping') return {};
+    if (message.action==='tag-guide') { showPickerBadge('tag'); showAttention(); return {}; }
     if (message.action==='loading') {
       if (message.family) showLoading(message.family,message.token);
       else if (message.token===loadingToken) { loadingBadge?.remove();loadingToken=null; }
@@ -370,7 +384,12 @@
     if (message.action==='failure') { loadingFamily='';failureMessage=status=message.error; return currentState(); }
     failureMessage='';
     if (['pick','cancel','source','select','remove','undo'].includes(message.action)) loadingFamily='';
-    if (message.action==='pick') { if (!['source','destination'].includes(message.mode)) throw new Error('Choose what to pick.'); picking=message.mode; unhighlight(); showPickerBadge(); showAttention(); status=message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState(); }
+    if (message.action==='pick') {
+      if (!['source','destination','tag'].includes(message.mode)) throw new Error('Choose what to pick.');
+      if (message.mode==='tag' && !rules.some(rule=>rule.id===message.ruleId)) throw new Error('This swap is no longer on the page.');
+      picking=message.mode; pickRuleId=message.mode==='tag' ? message.ruleId : ''; unhighlight(); showPickerBadge(); showAttention();
+      status=message.mode==='tag'?'Click text to pick its tag':message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState();
+    }
     if (message.action==='cancel') { stopPicking(); status='Picker cancelled'; return currentState(); }
     if (message.action==='prepare-restore') {
       scan();
@@ -401,6 +420,7 @@
       source=rule.source; selectedRuleId=rule.id; draftTags=null; scope=rule.scope; selectedElement=rule.element; destination=rule.destination; stopPicking(); revision++; status='Choose a font';
     } else if (message.action==='remove') {
       const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');
+      if (pickRuleId===rule.id) { stopPicking(); announce('cancelled'); }
       await clean(); rules=rules.filter(item=>item!==rule); for(const face of rule.fontFaces) document.fonts.delete(face); if(selectedRuleId===rule.id) selectedRuleId=''; sync(); revision++; scan(); await paint(); status=active?'Applied':'Original fonts restored';
     }
     else if (message.action==='apply') { if (!active) throw new Error('Choose a destination first.'); if (compared) { compared=false; await refresh(); } applied=true; status='Applied'; }

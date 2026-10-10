@@ -20,7 +20,10 @@ export async function testSavedSites(context,worker,page,panel,fixtureURL,passed
  assert.deepEqual(saved.rules,[{source:'Arial',destination:{kind:'google',family:'Inter'}},{source:'monospace',destination:{kind:'google',family:'Lora'}}]);
  assert(!JSON.stringify(saved).includes('Stories are better'));
  const taggedRule=(await ok('state')).rules.find(rule=>rule.source==='Arial');
- await ok('tags',{ruleId:taggedRule.id,frameId:0,tags:['p']});
+ await ok('pick',{mode:'tag',ruleId:taggedRule.id,frameId:0});
+ await page.locator('#body').click();
+ await page.waitForFunction(()=>!getComputedStyle(document.querySelector('#heading')).fontFamily.includes('FontSwap_'));
+ await worker.evaluate(async key=>{const end=Date.now()+5000;while(Date.now()<end){if((await chrome.storage.local.get(key))[key]?.rules.find(rule=>rule.source==='Arial')?.tags?.join()==='p')return;await new Promise(resolve=>setTimeout(resolve,20));}throw new Error('Picked tag was not saved');},key);
  saved=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],key);
  assert.deepEqual(saved.rules.find(rule=>rule.source==='Arial').tags,['p']);
  await page.reload();await restored();assert.equal(await page.locator('[data-font-swap-panel],[data-font-swap-picker]').count(),0);

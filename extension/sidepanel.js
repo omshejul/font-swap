@@ -38,6 +38,7 @@ const els = {
   tagSearch: $('tag-search'),
   tagOptions: $('tag-options'),
   allTags: $('all-tags'),
+  pickTag: $('pick-tag'),
   tagError: $('tag-error'),
 };
 
@@ -69,10 +70,12 @@ let pairsSignature = '';
 let resultsSignature = '';
 let filterRule = null;
 let filterSession = 0;
+let pickedTagRule = null;
 let tagChoices = [];
 let tagChoicesSignature = '';
 let tagQueue = Promise.resolve();
 const tagEdits = new Map();
+els.pickTag.append(els.pickDest.querySelector('svg').cloneNode(true));
 const ruleKey = rule => `${rule.frameId}:${rule.id}`;
 const tagNames = {h1:'Heading 1',h2:'Heading 2',h3:'Heading 3',h4:'Heading 4',h5:'Heading 5',h6:'Heading 6',p:'Paragraph',a:'Link',button:'Button',span:'Inline text',li:'List item',label:'Label',blockquote:'Quote',code:'Code',pre:'Preformatted',div:'Container',td:'Table cell',th:'Table heading',summary:'Summary',figcaption:'Caption',input:'Input',textarea:'Text area'};
 
@@ -146,6 +149,7 @@ async function connect() {
   const epoch = ++tabEpoch;
   closeTagFilter();
   tagEdits.clear();
+  pickedTagRule = null;
   state = null;
   busy = false;
   pending = errorText = rememberDeniedOrigin = noteText = doneKey = dismissedKey = '';
@@ -214,6 +218,12 @@ function setState(next) {
   }
   showView('main');
   render();
+  if (!next.picking && pickedTagRule?.started) {
+    const target = pickedTagRule;
+    pickedTagRule = null;
+    const rule = next.rules.find(rule => ruleKey(rule) === ruleKey(target));
+    if (rule) openTagFilter(rule);
+  }
 }
 
 function render() {
@@ -411,18 +421,21 @@ function renderTagOptions() {
 }
 
 async function openTagFilter(rule) {
+  const epoch=tabEpoch;
+  if (pickedTagRule) { pickedTagRule=null; await run('cancel'); }
+  if (epoch!==tabEpoch || switchingMode || (floating && root.host.hidden) || !state?.rules.some(item=>ruleKey(item)===ruleKey(rule))) return;
   if (filterRule && ruleKey(filterRule) === ruleKey(rule)) { closeTagFilter(); return; }
   closeTagFilter(); filterRule = rule;
   const session = ++filterSession;
   tagChoices = []; tagChoicesSignature = '';
   els.tagSearch.value = ''; els.tagError.hidden = true;
-  els.tagSearch.disabled = els.allTags.disabled = true;
+  els.tagSearch.disabled = els.allTags.disabled = els.pickTag.disabled = true;
   els.tagOptions.replaceChildren(Object.assign(document.createElement('p'), {className:'tag-empty',textContent:'Loading tags…'}));
   $(`filter-${rule.frameId}-${rule.id}`).setAttribute('aria-expanded','true');
   els.tagFilter.showPopover(); positionTagFilter();
   const response = await send('tag-options',{ruleId:rule.id,frameId:rule.frameId});
   if (session !== filterSession) return;
-  els.tagSearch.disabled = els.allTags.disabled = false;
+  els.tagSearch.disabled = els.allTags.disabled = els.pickTag.disabled = false;
   tagChoices = response.tags || [];
   if (!response.ok) { els.tagError.textContent = describeError(response.error); els.tagError.hidden = false; }
   renderTagOptions(); positionTagFilter(); els.tagSearch.focus({preventScroll:true});
@@ -447,12 +460,14 @@ function updateTags(tags) {
 
 async function run(action, payload = {}, family = '') {
   if (busy || !state || (state.status === 'Loading font' && !state.error)) return false;
+  if (action!=='cancel' && (action!=='pick' || payload.mode!=='tag')) pickedTagRule = null;
   closeTagFilter();
   busy = true;
   pending = family;
   errorText = noteText = '';
   render();
   await tagQueue;
+  if (action==='pick' && payload.mode==='tag' && pickedTagRule) pickedTagRule.started=true;
   const response = await send(action, payload);
   if (response.stale) return false;
   busy = false;
@@ -567,6 +582,7 @@ function setActive(index, scroll = true) {
 
 els.mode.addEventListener('click', async () => {
   if (busy || els.mode.disabled || tabId === null) return;
+  pickedTagRule = null;
   els.mode.disabled = true;
   switchingMode = true;
   const response = await send('mode', { mode: floating ? 'sidepanel' : 'floating' });
@@ -633,6 +649,11 @@ els.pairs.addEventListener('click', async (event) => {
 
 els.tagSearch.addEventListener('input',() => { renderTagOptions(); positionTagFilter(); });
 els.allTags.addEventListener('click',() => updateTags(allTagsSelected() ? [] : null));
+els.pickTag.addEventListener('click',async () => {
+  if (!filterRule) return;
+  pickedTagRule = {...filterRule,started:false};
+  if (!await run('pick',{mode:'tag',ruleId:filterRule.id,frameId:filterRule.frameId})) pickedTagRule = null;
+});
 els.tagOptions.addEventListener('change',event => {
   const tag = event.target.dataset.tag;
   if (!tag || !filterRule) return;
@@ -647,7 +668,7 @@ els.tagFilter.addEventListener('beforetoggle',event => {
 });
 addEventListener('resize',positionTagFilter);
 root.addEventListener('scroll',positionTagFilter,true);
-root.addEventListener('click',event => { if (event.target.closest('#close-panel')) closeTagFilter(); });
+root.addEventListener('click',event => { if (event.target.closest('#close-panel')) { pickedTagRule=null; closeTagFilter(); } });
 
 els.search.addEventListener('focus', loadCatalog);
 els.search.addEventListener('input', () => {
@@ -684,17 +705,21 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     adoptCatalog(message.catalog);
     return;
   }
-  if (floating && message?.type === 'HIDE_FLOATING') closeTagFilter();
+  if (floating && message?.type === 'HIDE_FLOATING') { pickedTagRule=null; closeTagFilter(); }
   if (!message || message.type !== 'STATE_CHANGED' || message.tabId !== tabId || !message.state) return;
   if (busy) return; // the pending action returns newer state
   setState(message.state);
 });
-if (!floating) chrome.tabs.onActivated.addListener(scheduleConnect);
+if (!floating) chrome.tabs.onActivated.addListener(() => {
+  if (pickedTagRule) { pickedTagRule=null; send('cancel'); }
+  scheduleConnect();
+});
 if (!floating) chrome.tabs.onUpdated.addListener((id, change) => {
+  if (id===tabId && change.status==='loading') pickedTagRule=null;
   if (id === tabId && change.status === 'complete') scheduleConnect();
 });
 if (!floating) {
-  const cancelPicking = () => { if (!switchingMode && tabId !== null) send('cancel'); };
+  const cancelPicking = () => { pickedTagRule=null; if (!switchingMode && tabId !== null) send('cancel'); };
   window.addEventListener('pagehide', cancelPicking);
   document.addEventListener('visibilitychange', () => { if (document.hidden) cancelPicking(); else switchingMode = false; });
 }

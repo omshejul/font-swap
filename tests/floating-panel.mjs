@@ -23,6 +23,7 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
   if(property==='text')return element.textContent;
   if(property==='font')return getComputedStyle(element).fontFamily;
   if(property==='tags'){const popup=root.getElementById('tag-filter'),r=popup.getBoundingClientRect();return {open:popup.matches(':popover-open'),ready:!root.getElementById('tag-search').disabled,all:root.getElementById('all-tags').getAttribute('aria-pressed')==='true',summary:!!root.querySelector('.tag-summary'),focus:root.activeElement?.dataset.tag,focusFilter:root.activeElement?.classList.contains('pair-filter'),options:root.querySelectorAll('.tag-option').length,checked:[...root.querySelectorAll('.tag-option input:checked')].map(input=>input.dataset.tag),fits:r.left>=0 && r.right<=innerWidth && r.bottom<=innerHeight,footer:/matching elements|Updates live/.test(popup.textContent),background:getComputedStyle(popup).backgroundColor};}
+  if(property==='pick-tag')return {label:element.getAttribute('aria-label'),icon:!!element.querySelector('svg'),color:getComputedStyle(element).color};
   if(property==='overflow')return element.scrollWidth>element.clientWidth;
   if(property==='feedback'){const link=root.getElementById('feedback'),url=new URL(link.href),title=root.querySelector('h1');return {recipient:url.pathname,body:url.searchParams.get('body'),subject:url.searchParams.get('subject'),icon:link.querySelector('svg').getAttribute('viewBox'),titleFits:title.scrollWidth<=title.clientWidth,focus:root.activeElement===link && getComputedStyle(link).outlineStyle!=='none'};}
   if(property==='footer'){const link=root.querySelector('.browse-fonts'),logo=link.querySelector('canvas'),r=link.getBoundingClientRect();return{href:link.href,target:link.target,rel:link.rel,svg:!!link.querySelector('.external-link'),painted:!!logo?.getContext('2d').getImageData(0,0,logo.width,logo.height).data.some((v,i)=>i%4===3&&v>0),visible:r.bottom<=host.getBoundingClientRect().bottom};}
@@ -96,6 +97,23 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  await click('#all-tags');await waitTags(tags=>tags.all && !tags.summary);
  await page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
  passed('floating bulk action clears all tags during search and restores all with the next click');
+ assert.deepEqual(await inspect('#pick-tag','pick-tag'),{label:'Pick a tag from the page',icon:true,color:'rgb(26, 95, 208)'});
+ const beginTagPick=async()=>{await click('#pick-tag');await wait(info=>info?.picking);await waitTags(tags=>!tags.open);};
+ const pickedTag=tags=>waitTags(info=>info.open && info.ready && JSON.stringify([...info.checked].sort())===JSON.stringify(tags));
+ await beginTagPick();assert.match((await pagePicker(worker,page)).text,/Pick a tag/);
+ await page.locator('#heading').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'<h1>');
+ await page.locator('#heading').click();await pickedTag(['h1']);await wait(info=>!info.picking);
+ await page.waitForFunction(()=>!getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
+ await beginTagPick();await page.locator('#body').click();await pickedTag(['h1','p']);
+ await beginTagPick();await page.locator('#body').click();await pickedTag(['h1','p']);
+ await beginTagPick();await page.locator('#heading').hover();await page.keyboard.press('Escape');await pickedTag(['h1','p']);await wait(info=>!info.picking);
+ assert.equal(await page.locator('[data-font-swap-picker],[data-font-swap-tooltip]').count(),0);
+ assert.equal(await page.locator('#heading').evaluate(element=>getComputedStyle(element).cursor),'crosshair');
+ await beginTagPick();await cancelPagePick(worker,page);await pickedTag(['h1','p']);await wait(info=>!info.picking);
+ assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
+ await click('#all-tags');await waitTags(tags=>tags.all && !tags.summary);
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
+ passed('floating tag-pick icon hides the popover during picking and reopens it after selections, duplicate picks, Escape and on-page Cancel');
  await page.emulateMedia({colorScheme:'dark'});await page.screenshot({path:'test-results/tag-filter-floating-dark.png'});
  await page.emulateMedia({colorScheme:'light'});await page.screenshot({path:'test-results/tag-filter-floating-light.png'});
  await page.setViewportSize({width:272,height:640});await waitTags(tags=>tags.fits);

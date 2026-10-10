@@ -1,6 +1,83 @@
 import assert from 'node:assert/strict';
 
+async function testPageTagPicker(page,ok,fixtureURL,passed) {
+ await page.goto(fixtureURL);await ok('connect');
+ await page.evaluate(()=>{
+  const heading=document.createElement('h2');heading.id='pick-tag-heading';
+  heading.innerHTML='<span id="pick-tag-nested">Nested tag text</span>';document.body.append(heading);
+  const custom=document.createElement('swap-test-tag');custom.id='pick-tag-custom';custom.textContent='Custom tag text';custom.style.display='block';document.body.append(custom);
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.id='pick-tag-svg';svg.setAttribute('width','160');svg.setAttribute('height','30');
+  const text=document.createElementNS(svg.namespaceURI,'text');text.setAttribute('y','20');text.textContent='SVG text';svg.append(text);document.body.append(svg);
+  const canvas=document.createElement('canvas');canvas.id='pick-tag-canvas';canvas.width=160;canvas.height=30;canvas.textContent='Canvas fallback text';document.body.append(canvas);
+ });
+ await ok('pick',{mode:'source'});await page.locator('#heading').click();
+ let state=(await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'})).state;
+ const rule=state.rules[0],target={ruleId:rule.id,frameId:rule.frameId},selection=state.selection;
+ const font=selector=>page.locator(selector).evaluate(element=>getComputedStyle(element).fontFamily);
+ const original=await page.locator('#heading').evaluate(element=>({cursor:element.style.cursor,outline:element.style.outline,background:element.style.backgroundColor}));
+ const pick=async(selector,tag,tags,payload=target)=>{
+  await ok('pick',{mode:'tag',...payload});await page.locator(selector).hover();
+  assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),`<${tag}>`);
+  await page.locator(selector).click();state=(await ok('state')).state;
+  assert.equal(state.picking,null);assert.deepEqual(state.rules.find(entry=>entry.id===payload.ruleId).tags,tags);
+  assert.equal(await page.locator('[data-font-swap-picker],[data-font-swap-tooltip]').count(),0);
+ };
+ await pick('#heading','h1',['h1']);
+ assert.match(await font('#heading'),/^monospace/);assert.match(await font('#body'),/^Arial/);
+ assert.equal(state.source,'Arial');assert.deepEqual(state.selection,selection);assert.deepEqual(state.rules[0].destination,rule.destination);
+ await pick('#generic','p',['h1','p']);assert.match(await font('#body'),/^monospace/);
+ await pick('#body','p',['h1','p']);assert.equal(state.rules.length,1);
+ assert.deepEqual(await page.locator('#heading').evaluate(element=>({cursor:element.style.cursor,outline:element.style.outline,background:element.style.backgroundColor})),original);
+ passed('tag picking narrows All tags, adds to a subset without duplicates and preserves the font pair and source selection');
+ await ok('tags',{...target,tags:[]});await pick('#pick-tag-custom','swap-test-tag',['swap-test-tag']);
+ assert.match(await font('#pick-tag-custom'),/^monospace/);assert.match(await font('#body'),/^Arial/);
+ await ok('tags',{...target,tags:null});await pick('#pick-tag-nested','span',['span']);
+ assert.match(await font('#pick-tag-nested'),/^monospace/);assert.match(await font('#heading'),/^Arial/);
+ const choices=(await ok('tag-options',target)).tags.map(choice=>choice.tag);
+ await ok('tags',{...target,tags:choices});await pick('#heading','h1',['h1']);
+ passed('tag picking uses the clicked nested or custom tag; empty picks resume a swap and an explicit complete selection narrows to one tag');
+ await ok('pick',{mode:'tag',...target});await page.locator('#heading').hover();await page.keyboard.press('Escape');
+ state=(await ok('state')).state;assert.equal(state.picking,null);assert.deepEqual(state.rules[0].tags,['h1']);
+ assert.equal(await page.locator('[data-font-swap-picker],[data-font-swap-tooltip]').count(),0);
+ assert.deepEqual(await page.locator('#heading').evaluate(element=>({cursor:element.style.cursor,outline:element.style.outline,background:element.style.backgroundColor})),original);
+ await ok('pick',{mode:'tag',...target});await page.locator('#body').hover();await ok('cancel');
+ assert.deepEqual((await ok('state')).state.rules[0].tags,['h1']);
+ assert.equal(await page.locator('[data-font-swap-picker],[data-font-swap-tooltip]').count(),0);
+ assert.equal(await page.locator('#body').evaluate(element=>element.style.cursor),'');
+ passed('Escape and cancellation preserve tag choices and remove tag-picker highlights, cursors, tooltips and instructions');
+ await ok('pick',{mode:'tag',...target});
+ for(const selector of ['#pick-tag-svg','#pick-tag-canvas']) {
+  await page.locator(selector).hover();assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);
+  await page.locator(selector).click();state=(await ok('state')).state;assert.equal(state.picking,'tag');assert.deepEqual(state.rules[0].tags,['h1']);
+ }
+ await ok('cancel');passed('tag picking ignores SVG and canvas without changing tags or ending the picker');
+ const frame=page.frameLocator('#same');
+ await frame.locator('#frame-text').evaluate(element=>{
+  const nested=document.createElement('span');nested.id='pick-tag-frame-nested';nested.textContent='Nested frame tag';element.append(nested);
+  const generic=document.createElement('p');generic.style.fontFamily='monospace';generic.textContent='Frame destination font';element.after(generic);
+ });
+ await ok('pick',{mode:'source'});await frame.locator('#frame-text').click();
+ await page.waitForFunction(()=>!document.querySelector('[data-font-swap-picker]'));
+ state=(await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'})).state;
+ const frameRule=state.rules.find(entry=>entry.frameId!==0),frameTarget={ruleId:frameRule.id,frameId:frameRule.frameId};
+ await ok('select',target);state=(await ok('pick',{mode:'tag',...frameTarget})).state;
+ assert.equal(state.frameId,frameRule.frameId);assert.equal(state.picking,'tag');
+ assert.equal(await page.locator('[data-font-swap-picker]').count(),1);assert.equal(await frame.locator('[data-font-swap-picker]').count(),0);
+ assert.equal(await page.frameLocator('#cross').locator('[data-font-swap-picker]').count(),0);
+ await page.locator('#heading').click();assert.equal((await ok('state')).state.picking,'tag');
+ await frame.locator('#pick-tag-frame-nested').hover();assert.equal(await frame.locator('[data-font-swap-tooltip]').textContent(),'<span>');
+ await frame.locator('#pick-tag-frame-nested').click();state=(await ok('state')).state;
+ assert.deepEqual(state.rules.find(entry=>entry.id===frameRule.id).tags,['span']);assert.deepEqual(state.rules.find(entry=>entry.id===rule.id).tags,['h1']);
+ assert.equal(state.picking,null);assert.equal(await frame.locator('[data-font-swap-picker],[data-font-swap-tooltip]').count(),0);
+ await page.waitForFunction(()=>!document.querySelector('[data-font-swap-picker]'));
+ assert.match(await frame.locator('#frame-text').evaluate(element=>getComputedStyle(element).fontFamily),/^Arial/);
+ assert.match(await frame.locator('#pick-tag-frame-nested').evaluate(element=>getComputedStyle(element).fontFamily),/^monospace/);
+ passed('tag picking switches to its rule frame, ignores text in other frames and keeps the main-page swap unchanged');
+ await ok('undo');
+}
+
 export async function testTagFilters(page,ok,fixtureURL,passed) {
+ await testPageTagPicker(page,ok,fixtureURL,passed);
  await page.goto(fixtureURL);await ok('connect');
  await page.evaluate(()=>{
   const heading=document.createElement('h1');heading.id='tag-heading';
@@ -94,6 +171,35 @@ export async function testNativeTagFilter(panel,page,passed) {
  await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
  await panel.wait("!document.getElementById('tag-filter').matches(':popover-open') && document.activeElement?.classList.contains('pair-filter')");
  passed('side-panel tag popover searches and applies without losing checkbox focus, fits 240/320px and closes with Escape');
+ await panel.click('.pair-filter');await panel.wait("document.getElementById('tag-filter').matches(':popover-open') && !document.getElementById('pick-tag').disabled");
+ assert.equal(await panel.evaluate("document.getElementById('pick-tag').getAttribute('aria-label')"),'Pick a tag from the page');
+ assert.equal(await panel.evaluate("!!document.querySelector('#pick-tag svg')"),true);
+ assert.equal(await panel.evaluate("getComputedStyle(document.getElementById('pick-tag')).color"),'rgb(26, 95, 208)');
+ const beginPick=async()=>{await panel.click('#pick-tag');await panel.wait("document.getElementById('view-main').dataset.picking==='tag' && !document.getElementById('tag-filter').matches(':popover-open')");};
+ const picked=async tags=>panel.wait(`document.getElementById('tag-filter').matches(':popover-open') && !document.getElementById('tag-search').disabled && !document.getElementById('view-main').dataset.picking && JSON.stringify([...document.querySelectorAll('.tag-option input:checked')].map(input=>input.dataset.tag).sort())===${JSON.stringify(JSON.stringify(tags))}`);
+ const badge=()=>panel.evaluate(`(async()=>{const tab=(await chrome.tabs.query({})).find(tab=>tab.url===${JSON.stringify(page.url())});return (await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>{const root=chrome.dom.openOrClosedShadowRoot(document.querySelector('[data-font-swap-picker]')),rect=root.querySelector('button').getBoundingClientRect();return {text:root.textContent,x:rect.x+rect.width/2,y:rect.y+rect.height/2};}}))[0].result;})()`);
+ await panel.evaluate("(()=>{document.querySelector('.tag-option input[data-tag=\"h1\"]').click();document.getElementById('pick-tag').click();})()");
+ await panel.wait("document.getElementById('view-main').dataset.picking==='tag' && !document.getElementById('tag-filter').matches(':popover-open')");
+ assert.doesNotMatch(await page.locator('#heading').evaluate(element=>getComputedStyle(element).fontFamily),/FontSwap_/);
+ await page.locator('#heading').click();await panel.wait("document.getElementById('tag-filter').matches(':popover-open') && !document.getElementById('pick-tag').disabled && document.getElementById('all-tags').getAttribute('aria-pressed')==='true'");
+ passed('tag picking waits for a queued checkbox edit before starting and reopens after the pick');
+ await beginPick();assert.match((await badge()).text,/Pick a tag/);
+ await page.locator('#heading').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'<h1>');
+ await page.locator('#heading').click();await picked(['h1']);
+ await page.waitForFunction(()=>!getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
+ await beginPick();await page.locator('#body').click();await picked(['h1','p']);
+ await beginPick();await page.locator('#body').click();await picked(['h1','p']);
+ await beginPick();await page.locator('#heading').hover();await page.keyboard.press('Escape');await picked(['h1','p']);
+ assert.equal(await page.locator('[data-font-swap-picker],[data-font-swap-tooltip]').count(),0);
+ assert.equal(await page.locator('#heading').evaluate(element=>getComputedStyle(element).cursor),'crosshair');
+ await beginPick();const cancel=await badge();await page.mouse.click(cancel.x,cancel.y);await picked(['h1','p']);
+ assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
+ await panel.click('#all-tags');await panel.wait("document.getElementById('all-tags').getAttribute('aria-pressed')==='true'");
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
+ await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+ await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+ await panel.wait("!document.getElementById('tag-filter').matches(':popover-open')");
+ passed('side-panel tag-pick icon hides the popover during picking and reopens it after selections, duplicate picks, Escape and on-page Cancel');
 }
 
 export async function testNativeSameSourceTags(panel,page,choose,passed) {
