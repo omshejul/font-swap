@@ -269,6 +269,23 @@ h1 img {
 }
 #connect-error-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
 
+#view-error.needs-access { padding-top: 8px; }
+.access-guide { width: 100%; margin: 0 0 6px; color: var(--muted); }
+.access-guide figcaption { margin-bottom: 6px; font-size: 12px; }
+.access-toolbar { display: block; width: 100%; height: auto; font-family: inherit; }
+.access-toolbar-frame { fill: var(--surface); stroke: var(--border); }
+.access-address { fill: var(--bg); }
+.access-icon-halo { fill: var(--accent-soft); }
+.access-icon { fill: var(--brand-bg); stroke: var(--accent); }
+.access-icon-letter { fill: #ffffff; }
+.access-point { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin: 7px calc(7.62% - 8px) 0 0; color: var(--accent); font-size: 12px; }
+.access-arrow { flex: none; animation: access-arrow-nudge 1.6s ease-in-out infinite; }
+.access-hint { margin-top: 10px; font-size: 13px; }
+.access-hint strong { color: var(--text); font-weight: 500; }
+@keyframes access-arrow-nudge { 0%, 100% { transform: translateY(0); opacity: .75; } 50% { transform: translateY(-2px); opacity: 1; } }
+@container (max-width: 260px) { .access-example { display: none; } }
+@media (prefers-reduced-motion: reduce) { .access-arrow { animation: none; } }
+
 .spinner,
 .note.is-loading::before {
   flex: none;

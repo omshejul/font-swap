@@ -1,5 +1,11 @@
 # Verification
 
+## Picture first access guide in v0.6.7
+
+Verified October 10, 2026. Missing page access shows the approved plain-language guide with an inline SVG toolbar, a highlighted S and a gently animated arrow. The drawing has no raster assets, links, or buttons. Retry is hidden for missing access and browser restrictions and remains available for temporary failures.
+
+Manifest checks, all 124 unit tests, all 77 existing end-to-end checks and nine real-toolbar opening checks passed. The guide fits light and dark sidebars at 240px and 320px. Reduced motion disables the arrow animation. Clicking the real toolbar icon recovers to working floating controls and keeps the preferred layout. Normal picking, swapping, tag filtering and remembered-site checks pass unchanged.
+
 ## Floating default and sidebar fallback in v0.6.6
 
 Verified October 10, 2026 on Chrome for Testing 152.0.7977.75. New installs open floating; existing sidebar preferences are preserved. The toolbar starts its scripting callback directly from the original gesture, allowing a failed floating opening to open the actual native sidebar even after a forced 5.2-second delay. Fallback keeps the user's preference and offers working source-picking controls on accessible pages.
