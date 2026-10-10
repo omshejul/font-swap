@@ -672,6 +672,10 @@ els.results.addEventListener('click', (event) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender) => {
+  if (!floating && sender.id === chrome.runtime.id && message?.type === 'RECONNECT_PANEL' && message.tabId === tabId) {
+    scheduleConnect();
+    return;
+  }
   if (sender.id === chrome.runtime.id && message?.type === 'CATALOG_CHANGED' && Array.isArray(message.catalog)) {
     adoptCatalog(message.catalog);
     return;

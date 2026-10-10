@@ -47,7 +47,9 @@ try {
  passed('floating failure delayed beyond five seconds opens a working sidebar using the toolbar gesture, with preference preserved and no stray picking');
  await worker.evaluate(()=>{globalThis.restoreTabGet=chrome.tabs.get;chrome.tabs.get=async id=>({...await globalThis.restoreTabGet(id),url:undefined});});
  for(const target of ['chrome://newtab','chrome://settings/','https://chromewebstore.google.com/']) {
-  await page.goto(target);await trigger();panel=await sidebar();await panel.wait("!document.getElementById('view-error').hidden && document.getElementById('retry').hidden");
+  await page.goto(target);
+  await panel.wait("!document.getElementById('view-error').hidden && document.getElementById('retry').hidden");
+  await trigger();panel=await sidebar();await panel.wait("!document.getElementById('view-error').hidden && document.getElementById('retry').hidden");
   assert.match(await panel.evaluate("document.getElementById('connect-error').textContent"),/regular website|website/i);
   assert.equal(await pref(),'floating');await noPicker();
   await panel.screenshot(`opening-restricted-${target.startsWith('https')?'store':target.includes('settings')?'settings':'newtab'}.png`);
