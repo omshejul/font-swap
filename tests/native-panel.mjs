@@ -47,6 +47,7 @@ export async function attachPanel(browserCDP,targetId) {
  return {command,evaluate,click,wait,screenshot};
 }
 export async function testNativePanel(context,worker,fixtureURL,passed) {
+ await worker.evaluate(()=>chrome.storage.local.set({panelMode:'sidepanel'}));
  const page=await context.newPage();await page.goto('https://www.iana.org/domains/reserved');await page.bringToFront();
  const id=new URL(worker.url()).host;const browserCDP=await context.browser().newBrowserCDPSession();
  const trigger=async()=>{

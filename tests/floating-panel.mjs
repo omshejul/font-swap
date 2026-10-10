@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {attachPanel,pagePicker,cancelPagePick} from './native-panel.mjs';
 
 export async function testFloatingPanel(context,worker,fixtureURL,passed) {
+ await worker.evaluate(()=>chrome.storage.local.set({panelMode:'sidepanel'}));
  await worker.evaluate(()=>new Promise((resolve,reject)=>{const deadline=Date.now()+5000;function ready(){if(chrome.action.onClicked.hasListeners())resolve();else if(Date.now()>deadline)reject(new Error('Toolbar listener not ready'));else setTimeout(ready,20);}ready();}));
  const page=await context.newPage();await page.goto(fixtureURL);await page.bringToFront();
  const id=new URL(worker.url()).host,cdp=await context.browser().newBrowserCDPSession();

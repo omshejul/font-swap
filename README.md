@@ -2,7 +2,7 @@
 
 Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly.
 
-One extension includes a native side panel and a draggable floating panel. Use the header icon to **Float on page** or **Dock to side panel**. Switching cancels picking, preserves active font swaps and remembers your preferred mode. New installs start in the side panel.
+One extension includes a native side panel and a draggable floating panel. Use the header icon to **Float on page** or **Dock to side panel**. Switching cancels picking, preserves active font swaps and remembers your preferred mode. New installs start in the floating panel. If it cannot open, the sidebar opens automatically without changing your preference. Browser restrictions show an explanation; connection problems offer Retry.
 
 The floating panel starts in the top-right and preserves the website's width. Closing cancels picking and keeps current swaps; the toolbar reopens it. Drag the header, or focus its grip and use arrow keys to move it. Notes and the repeated CSS-family explanation are removed from both modes.
 

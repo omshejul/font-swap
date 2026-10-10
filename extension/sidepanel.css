@@ -267,6 +267,7 @@ h1 img {
   align-items: flex-start;
   overflow-wrap: anywhere;
 }
+#connect-error-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
 
 .spinner,
 .note.is-loading::before {
