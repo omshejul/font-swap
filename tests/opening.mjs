@@ -56,10 +56,32 @@ try {
  }
  await worker.evaluate(()=>{chrome.tabs.get=globalThis.restoreTabGet;});
  passed('New Tab, Settings and Chrome Web Store show a restricted-page explanation without Retry');
+ await page.goto(url+'missing-access');
+ await worker.evaluate(()=>{globalThis.restoreExecute=chrome.scripting.executeScript;chrome.scripting.executeScript=function(options,...args){if(options.files?.includes('content.js'))return Promise.reject(new Error('Missing host permission for the tab'));return globalThis.restoreExecute.call(this,options,...args);};});
+ await trigger();panel=await sidebar();await panel.wait("!document.getElementById('view-error').hidden && !document.getElementById('access-guide').hidden && document.getElementById('retry').hidden");
+ assert.equal(await panel.evaluate("document.getElementById('connect-error-title').textContent"),'Click the S at the top of your browser');
+ assert.match(await panel.evaluate("document.getElementById('access-hint').textContent"),/puzzle piece, then SwapFont/);
+ assert.equal(await panel.evaluate("!!document.querySelector('#access-guide svg') && !document.querySelector('#access-guide img, #access-guide canvas, #access-guide button, #access-guide a')"),true);
+ for(const theme of ['dark','light']) for(const width of [240,320]) {
+  await panel.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme},{name:'prefers-reduced-motion',value:'no-preference'}]});
+  await panel.command('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:false});
+  assert.equal(await panel.evaluate("document.documentElement.scrollWidth<=innerWidth && document.getElementById('access-guide').getBoundingClientRect().right<=innerWidth"),true);
+  assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.access-arrow')).animationName"),'access-arrow-nudge');
+  assert.equal(await panel.evaluate("(()=>{const s=document.querySelector('.access-icon').getBoundingClientRect(),arrow=document.querySelector('.access-arrow').getBoundingClientRect();return Math.abs((s.left+s.right-arrow.left-arrow.right)/2)<1;})()"),true);
+  await panel.screenshot(`access-guide-${theme}-${width}.png`);
+ }
+ await panel.command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+ assert.equal(await panel.evaluate("getComputedStyle(document.querySelector('.access-arrow')).animationName"),'none');
+ await panel.command('Emulation.setEmulatedMedia',{features:[]});await panel.command('Emulation.clearDeviceMetricsOverride');
+ await noPicker();assert.equal(await pref(),'floating');
+ await worker.evaluate(()=>{chrome.scripting.executeScript=globalThis.restoreExecute;});
+ await trigger();await floating();await noSidebar();
+ passed('missing access shows the vector Picture first guide without Retry, fits both themes at 240px and 320px, respects reduced motion, and recovers through a toolbar click');
  await page.goto(url+'temporary');
  await worker.evaluate(()=>{globalThis.restoreExecute=chrome.scripting.executeScript;chrome.scripting.executeScript=function(options,...args){if(options.files?.includes('content.js'))return Promise.reject(new Error('Unexpected injection transport failure ABC123 at https://private.example/account/secret?token=hidden'));return globalThis.restoreExecute.call(this,options,...args);};});
  await trigger();panel=await sidebar();await panel.wait("!document.getElementById('view-error').hidden && !document.getElementById('retry').hidden");
  const ui=await panel.evaluate("document.getElementById('view-error').textContent");assert(!/ABC123|protected|restricted|manifest|transport/.test(ui));
+ assert.equal(await panel.evaluate("document.getElementById('access-guide').hidden && document.getElementById('access-hint').hidden"),true);
  const feedback=await panel.evaluate("new URL(document.getElementById('feedback').href).searchParams.get('body')");assert.match(feedback,/ABC123/);assert(!/account\/secret|token=hidden/.test(feedback));
  await noPicker();await panel.screenshot('opening-temporary.png');
  await worker.evaluate(()=>{chrome.scripting.executeScript=globalThis.restoreExecute;});
