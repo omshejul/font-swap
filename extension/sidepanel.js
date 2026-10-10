@@ -383,8 +383,11 @@ function renderTagOptions() {
     els.tagOptions.replaceChildren(...visible.map(({tag,count}) => {
       const row = Object.assign(document.createElement('label'), {className:'tag-option'});
       const input = Object.assign(document.createElement('input'), {type:'checkbox'}); input.dataset.tag = tag;
-      input.setAttribute('aria-label',`${tag}: ${tagNames[tag] || tag}`);
-      row.append(input,Object.assign(document.createElement('code'), {textContent:tag}),Object.assign(document.createElement('span'), {className:'tag-name',textContent:tagNames[tag] || tag}),Object.assign(document.createElement('span'), {className:'tag-count',textContent:count}));
+      input.setAttribute('aria-label',tagNames[tag] ? `${tag}: ${tagNames[tag]}` : tag);
+      row.classList.toggle('tag-option-custom',!tagNames[tag]);
+      row.append(input,Object.assign(document.createElement('code'), {textContent:tag,title:tag}));
+      if (tagNames[tag]) row.append(Object.assign(document.createElement('span'), {className:'tag-name',textContent:tagNames[tag]}));
+      row.append(Object.assign(document.createElement('span'), {className:'tag-count',textContent:count}));
       return row;
     }));
     if (!visible.length) els.tagOptions.append(Object.assign(document.createElement('p'), {className:'tag-empty',textContent:'No tags found'}));

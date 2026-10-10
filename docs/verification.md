@@ -1,5 +1,11 @@
 # Verification
 
+## Custom tag labels in v0.6.5
+
+Verified October 10, 2026. Unknown and custom tags render their name once, using the available row width with ellipsis and a full-name tooltip. Standard tags retain their friendly descriptions. Counts and checkboxes stay aligned; tag matching, search and saved scopes are unchanged.
+
+Manifest checks, 124 unit tests and all 77 browser checks passed. The browser fixture temporarily included `tp-yt-paper-item`, `yt-badge-view-model` and `mini-game-card-view-model` for visual review in both layouts and themes. Narrow 240px and 320px panel checks passed. Test-only fixture edits were discarded after verification.
+
 ## Feedback icon and copy in v0.6.4
 
 Verified October 10, 2026. The inline feedback SVG uses the exact viewBox and path from Google's Material Symbols Outlined feedback asset. Its existing 18px SVG and centered header control remain unchanged. Light side-panel and dark floating-panel screenshots show the symbol aligned with the mode control.
