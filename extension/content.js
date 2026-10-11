@@ -8,7 +8,7 @@
   let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
   let revision = 0, styleRevision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
-  let tooltip = null, pickerBadge = null, badgeLabel = null, badgeHint = null, pickRuleId = '', failureMessage = '';
+  let tooltip = null, tooltipFont, tooltipTag, pickerBadge = null, badgeLabel = null, badgeHint = null, pickRuleId = '', failureMessage = '';
   let loadingBadge = null, loadingLabel, loadingToken = null, loadingFamily = '';
   let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
   const attentionTiming = {page:500, dialogue:400, delay:100, exit:200, reduced:500};
@@ -35,7 +35,7 @@
       let element;
       while ((element=walker.nextNode())) {
         if (++visited > 30000) break;
-        if (element===tooltip || element===pickerBadge || element===attentionOverlay || element===loadingBadge || element.hasAttribute('data-font-swap-panel') || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
+        if (element===tooltip || tooltip?.contains(element) || element===pickerBadge || element===attentionOverlay || element===loadingBadge || element.hasAttribute('data-font-swap-panel') || element.matches('script,style,noscript,template,head,svg,svg *,canvas')) continue;
         const shadow = shadowOf(element); if (shadow) walk(shadow);
         const text = textOf(element); if (!text) continue;
         const css = getComputedStyle(element);
@@ -262,15 +262,30 @@
   function showName(element,event) {
     if (!tooltip) {
       tooltip=document.createElement('div'); tooltip.setAttribute('data-font-swap-tooltip',''); tooltip.setAttribute('role','tooltip');
-      const styles={all:'initial',position:'fixed','z-index':'2147483647','pointer-events':'none',background:'#202124',color:'#fff',font:'14px/1.3 system-ui, sans-serif',padding:'7px 10px','border-radius':'6px','box-shadow':'0 2px 8px #0004','max-width':'calc(100vw - 16px)','white-space':'nowrap',overflow:'hidden','text-overflow':'ellipsis'};
+      const styles={all:'initial',position:'fixed','z-index':'2147483647','pointer-events':'none',display:'inline-flex','align-items':'center',gap:'8px',background:'#202124',color:'#fff',font:'14px/1.3 system-ui, sans-serif',padding:'7px 10px','border-radius':'6px','box-shadow':'0 2px 8px #0004','max-width':'calc(100vw - 16px)','box-sizing':'border-box','white-space':'nowrap',overflow:'hidden','text-overflow':'ellipsis'};
       for (const [key,value] of Object.entries(styles)) tooltip.style.setProperty(key,value,'important');
+      tooltipFont=document.createElement('span'); tooltipTag=document.createElement('span');
+      const fontStyles={all:'initial',display:'block',font:'14px/1.3 system-ui, sans-serif',color:'#fff','pointer-events':'none','min-width':'0',overflow:'hidden','text-overflow':'ellipsis','white-space':'nowrap'};
+      const tagStyles={all:'initial',font:'11px/1 system-ui, sans-serif',color:'#8ab4f8','pointer-events':'none',padding:'2px 6px',border:'1px solid #8ab4f8','border-radius':'999px',flex:'none','white-space':'nowrap'};
+      for (const [key,value] of Object.entries(fontStyles)) tooltipFont.style.setProperty(key,value,'important');
+      for (const [key,value] of Object.entries(tagStyles)) tooltipTag.style.setProperty(key,value,'important');
+      tooltip.append(tooltipFont,tooltipTag);
       document.documentElement.append(tooltip);
     }
     const record=records.find(r=>r.element===element);
-    tooltip.textContent=picking==='tag' ? `<${element.localName}>` : (!compared && ruleFor(record)?.destination.family) || record?.family || U.parseStack(getComputedStyle(element).fontFamily)[0];
+    const visibleRule=compared ? null : ruleFor(record);
+    const tags=picking==='source' ? sourcePickTags(record,element,visibleRule) : picking==='destination' ? selectedRule()?.tags ?? draftTags : null;
+    const tag=Array.isArray(tags) && tags.length===1 ? tags[0] : '';
+    tooltipFont.textContent=picking==='tag' ? `<${element.localName}>` : visibleRule?.destination.family || record?.family || U.parseStack(getComputedStyle(element).fontFamily)[0];
+    tooltipTag.textContent=tag ? ` <${tag}> only` : '';
+    tooltipTag.style.setProperty('display',tag ? 'block' : 'none','important');
     const bounds=tooltip.getBoundingClientRect();
     tooltip.style.setProperty('left',`${Math.max(8,Math.min(event.clientX+14,innerWidth-bounds.width-8))}px`,'important');
     tooltip.style.setProperty('top',`${Math.max(8,Math.min(event.clientY+18,innerHeight-bounds.height-8))}px`,'important');
+  }
+  function sourcePickTags(record,element,rule) {
+    if (rule) return rule.tags ?? null;
+    return record && rules.some(rule=>U.matches(record.stack,rule.source) && Array.isArray(rule.tags)) ? [element.localName] : null;
   }
   function locate(event) {
     if (panelEvent(event)) return null;
@@ -322,7 +337,7 @@
         compared=false; source=record.family; selectedElement=element; scope='all';
         selectedRuleId=visibleRule?.id || '';
         // Uncovered text gets its own tag scope instead of replacing a filtered sibling.
-        draftTags=!selectedRuleId && rules.some(rule=>U.matches(record.stack,rule.source) && Array.isArray(rule.tags)) ? [element.localName] : null;
+        draftTags=selectedRuleId ? null : sourcePickTags(record,element,null);
         sync();
         const estimate=U.estimate(element,record.stack);
         selection={family:record.family,stack:record.stack,text:record.text.slice(0,160),tag:element.tagName.toLowerCase(),weight:record.weight,style:record.style,size:record.size,confidence:estimate && U.normalize(estimate)===U.normalize(record.family) ? 'estimated' : 'css'};

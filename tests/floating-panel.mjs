@@ -126,7 +126,10 @@ export async function testFloatingPanel(context,worker,fixtureURL,passed) {
  const font=selector=>page.locator(selector).evaluate(element=>getComputedStyle(element).fontFamily);
  await click('.pair-filter');await waitTags(tags=>tags.open && tags.ready);
  await click('#all-tags');await click('.tag-option input[data-tag="h1"]');await page.keyboard.press('Escape');
- await click('#another');await wait(info=>info?.picking);await page.locator('#body').click();await wait(info=>info?.rows===2 && info.editing && !info.picking);
+ await click('#another');await wait(info=>info?.picking);
+ await page.locator('#body').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Arial <p> only');
+ await page.screenshot({path:'test-results/scoped-tooltip-floating.png'});
+ await page.locator('#body').click();await wait(info=>info?.rows===2 && info.editing && !info.picking);
  assert.equal(await inspect('.pair-pending .tag-summary','text'),'p');await choose('Lora');
  assert.equal(await inspect('.pair:nth-child(2) .pair-from','text'),'Arial');
  const sameSourceBody=await font('#body');assert.notEqual(await font('#heading'),sameSourceBody);

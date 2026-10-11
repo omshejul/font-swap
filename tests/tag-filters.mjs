@@ -1,5 +1,56 @@
 import assert from 'node:assert/strict';
 
+async function testScopeTooltips(page,ok,fixtureURL,passed) {
+ await page.goto(fixtureURL);await ok('connect');
+ await page.evaluate(()=>{
+  const span=document.createElement('span');span.id='scope-span';span.textContent='Third tag';document.body.append(span);
+  const nested=document.createElement('span');nested.id='scope-nested';nested.textContent='Nested heading';document.querySelector('#heading').append(nested);
+  const custom=document.createElement('swap-scope-tag');custom.id='scope-custom';custom.textContent='Custom tag';custom.style.display='block';document.body.append(custom);
+ });
+ const hover=async(selector,font,tag='')=>{
+  await page.locator(selector).hover();
+  const tooltip=page.locator('[data-font-swap-tooltip]');
+  assert.equal(await tooltip.textContent(),font+(tag ? ` <${tag}> only` : ''));
+  const badge=tooltip.locator('span').nth(1);
+  assert.equal(await badge.isVisible(),!!tag);
+  if (tag) assert.deepEqual(await badge.evaluate(node=>{const css=getComputedStyle(node);return [css.color,css.fontSize,css.pointerEvents];}),['rgb(138, 180, 248)','11px','none']);
+ };
+ await ok('pick',{mode:'source'});await hover('#heading','Arial');await page.locator('#heading').click();
+ let state=(await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'})).state;
+ const heading={ruleId:state.rules[0].id,frameId:0};
+ await ok('tags',{...heading,tags:['h1']});
+ await ok('pick',{mode:'source'});await hover('#scope-nested','monospace','h1');await page.locator('#scope-nested').click();
+ assert.equal((await ok('state')).state.selectedRuleId,heading.ruleId);
+ await ok('pick',{mode:'source'});await hover('#body','Arial','p');await page.locator('#body').click();
+ state=(await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'})).state;
+ assert.deepEqual(state.rules.map(rule=>rule.tags),[['h1'],['p']]);
+ await ok('pick',{mode:'source'});await hover('#scope-span','Arial','span');await page.locator('#scope-span').click();
+ assert.deepEqual((await ok('state')).state.tags,['span']);
+ await ok('pick',{mode:'destination'});await hover('#generic','monospace','span');await page.keyboard.press('Escape');
+ state=(await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'})).state;
+ assert.deepEqual(state.rules.map(rule=>rule.tags),[['h1'],['p'],['span']]);
+ await ok('pick',{mode:'source'});await hover('#scope-nested','monospace','span');await ok('cancel');
+ passed('font hover previews the actual single-tag scope, including a third same-font swap, nested text and replacement picking');
+ for (const rule of state.rules.filter(rule=>rule.id!==heading.ruleId)) await ok('remove',{ruleId:rule.id,frameId:0});
+ await ok('tags',{...heading,tags:['h1','p']});
+ await ok('pick',{mode:'source'});await hover('#heading','monospace');await hover('#scope-custom','Arial','swap-scope-tag');
+ await page.evaluate(()=>{const style=document.createElement('style');style.id='scope-hostile-style';style.textContent='span{color:red!important;font-size:40px!important;padding:40px!important;pointer-events:auto!important}';document.head.append(style);});
+ await hover('#scope-custom','Arial','swap-scope-tag');
+ assert.deepEqual(await page.locator('[data-font-swap-tooltip] span').first().evaluate(node=>{const css=getComputedStyle(node);return [css.color,css.fontSize,css.pointerEvents];}),['rgb(255, 255, 255)','14px','none']);
+ await ok('source',{family:'Arial'});
+ assert(!(await ok('state')).state.pageFonts.some(font=>font.family==='system-ui'),'Tooltip contents must not enter font scanning');
+ await page.locator('#scope-hostile-style').evaluate(node=>node.remove());
+ const size=page.viewportSize();await page.setViewportSize({width:240,height:640});await hover('#scope-custom','Arial','swap-scope-tag');
+ assert(await page.locator('[data-font-swap-tooltip]').evaluate(node=>{const r=node.getBoundingClientRect();return r.left>=8 && r.right<=innerWidth-8;}),'Tag badge must fit at the viewport edge');
+ await page.setViewportSize(size);
+ await page.keyboard.press('Escape');assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);
+ await ok('tags',{...heading,tags:null});await ok('pick',{mode:'source'});await hover('#scope-custom','monospace');await ok('cancel');
+ await ok('compare',{enabled:true});await ok('pick',{mode:'source'});await hover('#scope-custom','Arial');await ok('cancel');await ok('compare',{enabled:false});
+ await ok('pick',{mode:'tag',...heading});await hover('#scope-nested','<span>');await ok('cancel');
+ await ok('undo');assert.equal(await page.locator('[data-font-swap-tooltip]').count(),0);
+ passed('tooltip styling resists website CSS, stays out of scanning, clears on cancellation and leaves unrestricted, multi-tag and tag picking unchanged');
+}
+
 async function testPageTagPicker(page,ok,fixtureURL,passed) {
  await page.goto(fixtureURL);await ok('connect');
  await page.evaluate(()=>{
@@ -77,6 +128,7 @@ async function testPageTagPicker(page,ok,fixtureURL,passed) {
 }
 
 export async function testTagFilters(page,ok,fixtureURL,passed) {
+ await testScopeTooltips(page,ok,fixtureURL,passed);
  await testPageTagPicker(page,ok,fixtureURL,passed);
  await page.goto(fixtureURL);await ok('connect');
  await page.evaluate(()=>{
@@ -212,6 +264,8 @@ export async function testNativeSameSourceTags(panel,page,choose,passed) {
  await panel.click('#all-tags');await panel.click('.tag-option input[data-tag="h1"]');
  await close();
  await panel.click('#another');await panel.wait("!!document.getElementById('view-main').dataset.picking");
+ await page.locator('#body').hover();assert.equal(await page.locator('[data-font-swap-tooltip]').textContent(),'Arial <p> only');
+ await page.screenshot({path:'test-results/scoped-tooltip-sidepanel.png'});
  await page.locator('#body').click();await panel.wait("document.querySelector('.pair-pending .tag-summary')?.textContent==='p'");
  await choose('Lora');
  assert.equal(await panel.evaluate("[...document.querySelectorAll('.pair-from')].map(element=>element.textContent).join(',')"),'Arial,Arial');
