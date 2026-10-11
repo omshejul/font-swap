@@ -1,6 +1,6 @@
 {
   "name": "font-swap",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -10,6 +10,7 @@
     "test:e2e": "node tests/e2e.mjs",
     "test:opening": "node tests/opening.mjs",
     "test:flicker": "node tests/flicker.mjs",
+    "test:tag-inheritance": "node tests/tag-inheritance.mjs",
     "package": "node scripts/package.mjs",
     "catalog": "node scripts/update-catalog.mjs"
   },

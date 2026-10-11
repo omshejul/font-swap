@@ -119,10 +119,10 @@
   async function paint() {
     if (!active || compared) { await clean(); return; }
     const chosen = records.filter(record=>ruleFor(record));
-    // Keep inherited icon glyphs on their original stack when an ancestor swaps.
+    // Keep unselected text and icon glyphs on their original inherited stack.
     const changed=new Set(chosen.map(r=>r.element));
     const guards=records.filter(r=>{
-      if(!r.protected) return false;
+      if(changed.has(r.element)) return false;
       let ancestor=r.element.parentElement || r.element.getRootNode().host;
       while(ancestor) { if(changed.has(ancestor)) return true; ancestor=ancestor.parentElement || ancestor.getRootNode().host; }
       return false;
@@ -133,7 +133,7 @@
       for (const record of [...chosen,...guards]) {
         const rule=ruleFor(record);
         const tail = rule && U.fallback(record.stack,rule.source);
-        const value = record.protected ? record.stack : `${rule.alias ? U.quote(rule.alias) : U.familyCSS(rule.destination.family)}${tail ? ', '+tail : ''}`;
+        const value = !rule ? record.stack : `${rule.alias ? U.quote(rule.alias) : U.familyCSS(rule.destination.family)}${tail ? ', '+tail : ''}`;
         let token = groups.get(value);
         if (!token && record.root===document) { token = `${prefix}${groups.size}`; groups.set(value,token); cssRules.push(`[${marker}="${token}"] { font-family: ${value} !important; }`); }
         const item = {element:record.element,token,inline:record.root!==document,value};

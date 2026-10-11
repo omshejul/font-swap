@@ -50,8 +50,13 @@
     if (!Array.isArray(tags) || tags.length > 100 || tags.some(tag => typeof tag !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/i.test(tag))) throw new Error('Choose valid HTML tags.');
     return [...new Set(tags.map(tag => tag.toLowerCase()))].sort();
   }
+  const textTags = new Set('h1 h2 h3 h4 h5 h6 p a button label li dt dd td th caption figcaption blockquote pre summary input textarea select option legend'.split(' '));
   function* ancestors(element) {
-    for (let node = element; node; node = node.parentElement || node.getRootNode().host) yield node;
+    // Inline formatting follows its text tag, but containers cannot select past it.
+    for (let node = element; node; node = node.parentElement || node.getRootNode().host) {
+      yield node;
+      if (textTags.has(node.localName)) break;
+    }
   }
   function matchesTags(element, tags) {
     return tags == null || [...ancestors(element)].some(node => tags.includes(node.localName));
