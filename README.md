@@ -2,6 +2,10 @@
 
 Chrome extension. Click text, choose a Google Font or another font on the page, and swap it instantly.
 
+[Add to Chrome](https://chromewebstore.google.com/detail/swapfont/ojjfeocleifnnealleolkekcdcgnnofb) · [Try the demo](https://omshejul.com/app/swapfont/demo) · [Website](https://omshejul.com/app/swapfont)
+
+SwapFont is open source. You can read the code, suggest an idea, or help improve it.
+
 One extension includes a native side panel and a draggable floating panel. Use the header icon to **Float on page** or **Dock to side panel**. Switching cancels picking, preserves active font swaps and remembers your preferred mode. New installs start in the floating panel. If it cannot open, the sidebar opens automatically without changing your preference. Browser restrictions show an explanation; connection problems offer Retry.
 
 The floating panel starts in the top-right and preserves the website's width. Closing cancels picking and keeps current swaps; the toolbar reopens it. Drag the header, or focus its grip and use arrow keys to move it. Notes and the repeated CSS-family explanation are removed from both modes.
@@ -78,6 +82,16 @@ The fixture tests use a temporary extension copy with loopback permissions so pe
 Results and screenshots are written to `test-results/`. The last verified run is documented in [docs/verification.md](docs/verification.md).
 
 To refresh the bundled font catalog, run `npm run catalog`. Validate the changed snapshot before committing.
+
+## Help improve SwapFont
+
+Found a bug or have an idea? [Open an issue](https://github.com/omshejul/font-swap/issues/new). Explain what you expected and what happened. Share page URLs and screenshots only if they are safe to share. Never include passwords or private page content.
+
+To contribute code, fork the repository, make a branch, and open a pull request. Keep changes focused. Run the checks in **Develop and verify** and include the results. For UI changes, include a screenshot and check both floating and side-panel layouts. Contributions to SwapFont's original code use the MIT license.
+
+## License
+
+SwapFont's original code is licensed under the [MIT License](LICENSE). Third-party files retain their own licenses and notices, including [Lucide icons](extension/icons/LICENSE-LUCIDE.txt), [Material Symbols](extension/icons/LICENSE-MATERIAL-SYMBOLS.txt), [the Google Fonts logo](extension/icons/GOOGLE-FONTS-NOTICE.txt), [fonts used in the launch video](videos/swapfont-launch/fonts/OFL.txt), and [GSAP used in the launch video](https://gsap.com/standard-license/).
 
 ## Implementation
 
