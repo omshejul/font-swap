@@ -1,18 +1,17 @@
-SwapFont lets you preview different fonts on a live web page without touching its code. It is made for designers and developers who want to compare typography on real content.
+SwapFont lets you try different fonts on a live web page without changing its code. Click text, pick a Google Font, and watch it change. Free. Open source.
 
-Click the toolbar icon and hover over text to see its CSS font name. Click a font, choose a replacement, and it applies immediately.
+- Pick a font by clicking text on the page.
+- Choose a Google Font and see it apply instantly.
+- Add several swaps. Undo one or all.
+- Remember a site, if you choose to.
+- Use a floating panel or the side panel.
+- Limit a swap to specific HTML tags.
 
-- Search Google Fonts, or pick another font already on the page.
-- Add and edit pairs. Remove one swap or undo all.
-- Filter swaps by HTML tags. Give the same source font different replacements with independent tag choices.
-- Use floating controls or Chrome's side panel. Switching keeps active swaps.
-- Remember main-page pairs and tag choices with optional site permission.
-- Optional feedback opens an editable email draft. Nothing is sent automatically.
+Privacy
+Page text, URLs, picker activity and saved swaps are processed locally, without behavioral analytics. They are not uploaded. Google Fonts receives the font you request. The catalog loads from omshejul.com. Google and Vercel receive connection details such as your IP address; Vercel may derive approximate location and retain operational logs. Feedback opens an editable email draft. Nothing is sent automatically.
 
-Search uses the last valid downloaded or bundled catalog. Opening SwapFont silently refreshes https://omshejul.com/api/swapfont/catalog after seven days since its last success, or on first use. Failed or interrupted attempts wait one hour. Refreshes never block picking, search or swaps. Nothing is scheduled while unused. Metadata and timestamps stay local.
+Chrome 116+ on desktop. Normal HTML text only; browser pages, the Chrome Web Store, PDFs, images, canvas and inaccessible frames are unsupported.
 
-No account or behavioral analytics. Catalog requests omit cookies and referrer and send no visited site URL, page text, search, selected font, settings or installation identifier. Vercel hosts the endpoint and processes IP addresses and HTTP metadata; it may derive approximate location or retain operational/security logs. Font downloads reveal the selected font and connection information to Google. All executable JavaScript is bundled; remote catalog JSON, stylesheets and fonts are data.
-
-Chrome desktop 116+. Ordinary HTML text only. Images, canvas, PDFs, browser pages, the Chrome Web Store and inaccessible frames are unsupported. A glyph may use a fallback instead of the detected CSS family. Page-picked fonts must be available on the page. New downloads need a connection; cached fonts may work offline.
-
-Privacy: https://omshejul.com/app/swapfont/privacy
+Website: https://omshejul.com/app/swapfont
+Source (MIT): https://github.com/omshejul/font-swap
+Privacy policy: https://omshejul.com/app/swapfont/privacy

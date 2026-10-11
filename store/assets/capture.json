@@ -1,10 +1,10 @@
 {
-  "version": "0.4.2",
+  "version": "0.6.9",
   "browser": "152.0.7977.75",
   "size": {
     "width": 1280,
     "height": 800
   },
-  "source": "Real production extension on website/demo.html",
-  "capturedAt": "2026-10-08T08:03:55.269Z"
+  "source": "Real production extension on website/demo.html, using Google Fonts Lora and DM Sans. Before heading is an unmodified capture of the same text.",
+  "capturedAt": "2026-10-11T17:47:09.896Z"
 }
