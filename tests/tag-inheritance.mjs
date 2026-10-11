@@ -28,7 +28,7 @@ try {
   const localChrome = '/Users/omshejul/.cache/puppeteer/chrome/mac_arm-152.0.7977.75/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
   if (!executablePath) try { await access(localChrome); executablePath = localChrome; } catch {}
   context = await chromium.launchPersistentContext(path.join(temp, 'profile'), {
-    executablePath, headless: process.env.HEADED !== '1',
+    executablePath, channel: executablePath ? undefined : 'chromium', headless: process.env.HEADED !== '1',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
   });
   const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
