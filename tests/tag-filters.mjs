@@ -261,7 +261,7 @@ export async function testNativeSameSourceTags(panel,page,choose,passed) {
   await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
  };
  await panel.click('.pair-filter');await panel.wait("!document.getElementById('all-tags').disabled");
- await panel.click('#all-tags');await panel.wait("document.getElementById('all-tags').getAttribute('aria-pressed')==='false' && !document.querySelector('.tag-option input:checked')");
+ await panel.click('#all-tags');await panel.wait("document.querySelector('.tag-summary')?.textContent==='No tags selected' && document.getElementById('all-tags').getAttribute('aria-pressed')==='false' && !document.querySelector('.tag-option input:checked')");
  await panel.click('.tag-option input[data-tag="h1"]');await panel.wait("document.querySelector('.tag-summary')?.textContent==='h1'");
  await close();
  await panel.click('#another');await panel.wait("!!document.getElementById('view-main').dataset.picking");
