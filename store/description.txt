@@ -1,4 +1,4 @@
-SwapFont lets you preview different fonts on a live web page without touching its code. It is made for designers and developers who want to compare typography on real content.
+SwapFont lets you try different fonts on a live web page without changing its code. It is free and open source, made for designers and developers who want to compare typography on real content.
 
 Click the toolbar icon and hover over text to see its CSS font name. Click a font, choose a replacement, and it applies immediately.
 
@@ -11,8 +11,10 @@ Click the toolbar icon and hover over text to see its CSS font name. Click a fon
 
 Search uses the last valid downloaded or bundled catalog. Opening SwapFont silently refreshes https://omshejul.com/api/swapfont/catalog after seven days since its last success, or on first use. Failed or interrupted attempts wait one hour. Refreshes never block picking, search or swaps. Nothing is scheduled while unused. Metadata and timestamps stay local.
 
-No account or behavioral analytics. Catalog requests omit cookies and referrer and send no visited site URL, page text, search, selected font, settings or installation identifier. Vercel hosts the endpoint and processes IP addresses and HTTP metadata; it may derive approximate location or retain operational/security logs. Font downloads reveal the selected font and connection information to Google. All executable JavaScript is bundled; remote catalog JSON, stylesheets and fonts are data.
+No behavioral analytics. Catalog requests omit cookies and referrer and send no visited site URL, page text, search, selected font, settings or installation identifier. Vercel hosts the endpoint and processes IP addresses and HTTP metadata; it may derive approximate location or retain operational/security logs. Font downloads reveal the selected font and connection information to Google. All executable JavaScript is bundled; remote catalog JSON, stylesheets and fonts are data.
 
 Chrome desktop 116+. Ordinary HTML text only. Images, canvas, PDFs, browser pages, the Chrome Web Store and inaccessible frames are unsupported. A glyph may use a fallback instead of the detected CSS family. Page-picked fonts must be available on the page. New downloads need a connection; cached fonts may work offline.
 
+Website: https://omshejul.com/app/swapfont
+Source code (MIT license): https://github.com/omshejul/font-swap
 Privacy: https://omshejul.com/app/swapfont/privacy
