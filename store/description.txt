@@ -1,16 +1,18 @@
-SwapFont lets you try different fonts on a live web page without changing its code. Click text, pick a Google Font, and watch it change. Free. Open source.
+See what font a website uses, then try a different one.
 
-- Pick a font by clicking text on the page.
-- Choose a Google Font and see it apply instantly.
-- Add several swaps. Undo one or all.
-- Remember a site, if you choose to.
-- Use a floating panel or the side panel.
-- Limit a swap to specific HTML tags.
+Hover over text to see its font name. Click to pick it. Choose a new font and watch the website change right away.
 
-Privacy
-Page text, URLs, picker activity and saved swaps are processed locally, without behavioral analytics. They are not uploaded. Google Fonts receives the font you request. The catalog loads from omshejul.com. Google and Vercel receive connection details such as your IP address; Vercel may derive approximate location and retain operational logs. Feedback opens an editable email draft. Nothing is sent automatically.
+What you can do
+- Swap in a Google Font or another font already on the page
+- Add several swaps, then undo one or all of them
+- Remember your fonts for a site, if you like
 
-Chrome 116+ on desktop. Normal HTML text only; browser pages, the Chrome Web Store, PDFs, images, canvas and inaccessible frames are unsupported.
+Free. Open source.
+
+Works on ordinary websites in desktop Chrome.
+
+Your privacy
+Page content, page addresses, font searches and saved settings stay on your device. SwapFont downloads the font list from our server and the fonts you request from Google Fonts. Downloads send your IP address and basic connection details.
 
 Website: https://omshejul.com/app/swapfont
 Source (MIT): https://github.com/omshejul/font-swap
