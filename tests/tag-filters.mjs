@@ -246,7 +246,7 @@ export async function testNativeTagFilter(panel,page,passed) {
  assert.equal(await page.locator('#heading').evaluate(element=>getComputedStyle(element).cursor),'crosshair');
  await beginPick();const cancel=await badge();await page.mouse.click(cancel.x,cancel.y);await picked(['h1','p']);
  assert.equal(await page.locator('[data-font-swap-picker]').count(),0);
- await panel.click('#all-tags');await panel.wait("document.getElementById('all-tags').getAttribute('aria-pressed')==='true'");
+ await panel.click('#all-tags');await panel.wait("document.getElementById('all-tags').getAttribute('aria-pressed')==='true' && !document.querySelector('.tag-summary')");
  await page.waitForFunction(()=>getComputedStyle(document.querySelector('#body')).fontFamily.includes('FontSwap_'));
  await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
  await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
@@ -260,7 +260,7 @@ export async function testNativeSameSourceTags(panel,page,choose,passed) {
   await panel.command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
   await panel.command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
  };
- await panel.click('.pair-filter');await panel.wait("!document.getElementById('all-tags').disabled");
+ await panel.click('.pair-filter');await panel.wait("document.getElementById('tag-filter').matches(':popover-open') && !document.getElementById('all-tags').disabled");
  await panel.click('#all-tags');await panel.wait("document.querySelector('.tag-summary')?.textContent==='No tags selected' && document.getElementById('all-tags').getAttribute('aria-pressed')==='false' && !document.querySelector('.tag-option input:checked')");
  await panel.click('.tag-option input[data-tag="h1"]');await panel.wait("document.querySelector('.tag-summary')?.textContent==='h1'");
  await close();
@@ -281,7 +281,7 @@ export async function testNativeSameSourceTags(panel,page,choose,passed) {
  await panel.click('.pair:nth-child(2) .pair-remove');await panel.wait("document.querySelectorAll('.pair').length===1");
  assert.equal(await font('#heading'),headingFont);assert.match(await font('#body'),/^Arial/);
  await panel.click('.pair-edit');await choose('Inter');
- await panel.click('.pair-filter');await panel.wait("!document.getElementById('all-tags').disabled");
+ await panel.click('.pair-filter');await panel.wait("document.getElementById('tag-filter').matches(':popover-open') && !document.getElementById('all-tags').disabled");
  await panel.click('#all-tags');await panel.wait("!document.querySelector('.tag-summary')");await close();
  passed('side-panel rows with the same source font edit and remove independently with separate tag filters');
 }

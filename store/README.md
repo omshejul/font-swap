@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Prepared release: SwapFont v0.6.3. Category Art & Design. Language English. Submission is handled separately; this document does not confirm it.
+Listing assets: SwapFont v0.6.9. Category Art & Design. Language English. Submission is handled separately; this document does not confirm it.
 
 - Homepage: https://omshejul.com/app/swapfont
 - Privacy: https://omshejul.com/app/swapfont/privacy
@@ -10,7 +10,7 @@ Prepared release: SwapFont v0.6.3. Category Art & Design. Language English. Subm
 
 ## Assets
 
-The five 1280x800 RGB PNG screenshots show the actual packaged extension on `website/demo.html`, captured with `node scripts/store-screenshots.mjs` in a disposable Chrome profile. The capture command closes its browser and local server on completion. `assets/capture.json` records the browser and capture date.
+The five 1280x800 RGB PNG screenshots show the actual packaged extension on `website/demo.html` with Google Fonts Lora and DM Sans, captured with `node scripts/store-screenshots.mjs` in a disposable Chrome profile. The first compares the same heading before and after Lora is replaced with Space Grotesk; its Before image is an unmodified capture. Screens then show picking, choosing a Google Font, the optional Remember control, and multiple swaps with Undo all. Captions are presentation around the real interface, not recreated controls. The capture command closes its browser and local server on completion. `assets/capture.json` records the browser and capture date.
 
 The promotional tiles are vector typography compositions. Their source SVGs are included. They use the actual extension icon, installed Georgia and Inter fonts. Export with Inkscape using `--export-png-color-mode=RGB_8`. The small tile is 440x280 and the marquee is 1400x560.
 
@@ -43,8 +43,8 @@ Storage permission justification: Stores the panel preference, cached fonts, val
 
 Keep the existing Limited Use certifications. Data is used for font identification, catalog updates, previews and service operation/security, without sale, advertising, profiling or credit/lending use. Feedback email is optional, opens an editable diagnostic draft and sends nothing automatically.
 
-## Previous publication and promo status
+## Publication and promo status
 
-Version 0.5.5 is the previously published public release. The store previously held a 0.5.6 draft, and its promo review was cancelled. Version 0.6.3 is prepared for the next submission; a later release report should record the actual submission result.
+Version 0.6.9 is published publicly. These refreshed listing assets and copy are prepared for a separate metadata review. Submission evidence is recorded after Google acknowledges it.
 
-Promo video: https://www.youtube.com/watch?v=GQ9ZjuzLIzw. The unlisted video is titled "SwapFont | Preview fonts on live web pages" and was uploaded on October 9, 2026. YouTube copyright and Community Guidelines checks found no issues. The cancelled review is not pending and does not confirm publication of the promo update.
+Promo video: https://www.youtube.com/watch?v=GQ9ZjuzLIzw, titled "SwapFont | Preview fonts on live web pages".
