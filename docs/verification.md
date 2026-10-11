@@ -205,3 +205,11 @@ Restoration targets document IDs. Saving binds the origin to the main document s
 Seven unit tests and all 56 existing browser checks passed. Focused interactions in a disposable real Chrome profile also cover source and replacement picking in floating and native side panels: exact pulse timings, selection before 600ms, Escape, page Cancel, rapid reactivation, reduced-motion static outlines, panel closure, restored cursors and normal page clicks. Instrumentation in the temporary test copy confirms pulse and hover updates trigger no extra scans or refresh schedules. Temporary browser profiles and fixture servers are closed after verification.
 
 The shared footer owns equal 12px vertical spacing. Empty pickers have one divider, and wrapped replacement labels align with the eyedropper. Applied rows keep equal 12px left/top/bottom padding. Pointer choice/collapse does not force a row outline; keyboard choice retains visible focus.
+## Container tag isolation in v0.6.9
+
+Verified October 11, 2026 on Chrome for Testing 152.0.7977.75. Reproduced an unchecked `h1` changing when only `div` was selected. Ancestor matching crossed the heading boundary, and changing only the parent could also leak through CSS inheritance. Tag matching and tag counts now stop at semantic text boundaries; inherited text outside every active rule retains its original stack. Inline formatting remains part of its selected heading or paragraph.
+
+The focused regression covers repeated div toggles, inline and shadow text, an independently selected span, new headings, different font families, protected glyphs, independent swaps, Compare and Undo. All 125 unit tests, 87 end-to-end browser checks and manifest checks passed. The flicker check sampled 363 frames across idle and 90 page mutations with no font reversions or geometry shifts.
+
+On the actual https://noscrubs.com/ page, the production manifest opened the floating picker through a toolbar action. Selected DM Sans, applied the real Google Font Prompt, unchecked h1 and clicked the div checkbox four times. The heading retained DM Sans throughout; its separately selected span retained Prompt. Both floating and native sidebar interactions, saved settings and tag picking passed in the browser suite. No permissions or dependencies were added.
+

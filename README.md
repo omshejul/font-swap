@@ -12,6 +12,8 @@ The floating panel starts in the top-right and preserves the website's width. Cl
 
 Each applied swap has an optional **Apply to tags** funnel. Open it to search and select HTML tags such as `h1`, `h2` and `p`. Changes apply immediately to matching text inside those tags, including nested text. The bulk button toggles between **Clear** and **All tags**. Each swap keeps its own choices, including when changing the replacement font or remembering the site. To use different replacements for the same original font, filter the first swap, then use **Pick another font** on text outside that filter. The new swap starts scoped to the picked tag; each row edits independently.
 
+Inline spans and formatting follow their heading or paragraph. Other text tags need their own selection: checking a container such as `div` leaves unchecked headings and paragraphs in their original font.
+
 The header's feedback icon opens an editable email draft to chromewebstore@omshejul.com with the extension version, browser, layout, site origin, active swaps and any error. It includes no page text or URL paths. Nothing is sent until you send the email.
 
 ## Install locally
