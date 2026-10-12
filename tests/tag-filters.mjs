@@ -128,6 +128,23 @@ async function testPageTagPicker(page,ok,fixtureURL,passed) {
 }
 
 export async function testTagFilters(page,ok,fixtureURL,passed) {
+ await page.goto(fixtureURL);await ok('connect');await ok('source',{family:'Arial'});
+ const draft={ruleId:'draft',frameId:0,source:'Arial'};
+ assert((await ok('tag-options',draft)).tags.some(choice=>choice.tag==='h1'));
+ await ok('tags',{...draft,tags:[]});
+ let draftState=(await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'})).state;
+ assert.deepEqual(draftState.rules[0].tags,[]);
+ assert.match(await page.locator('#heading').evaluate(e=>getComputedStyle(e).fontFamily),/^Arial/);
+ await ok('undo');await ok('source',{family:'Arial'});await ok('tags',{...draft,tags:['h1']});
+ draftState=(await ok('preview',{destination:{kind:'page',family:'monospace'},scope:'all'})).state;
+ assert.deepEqual(draftState.rules[0].tags,['h1']);
+ assert.match(await page.locator('#heading').evaluate(e=>getComputedStyle(e).fontFamily),/^monospace/);
+ assert.match(await page.locator('#body').evaluate(e=>getComputedStyle(e).fontFamily),/^Arial/);
+ await assert.rejects(ok('tags',{...draft,tags:['p']}),/no longer on the page/);
+ await ok('source',{family:'monospace'});
+ await assert.rejects(ok('tags',{...draft,tags:['p']}),/no longer on the page/);
+ assert.equal((await ok('state')).state.tags,null);
+ passed('draft filters preserve empty and heading-only scopes and reject stale source selections');
  await testScopeTooltips(page,ok,fixtureURL,passed);
  await testPageTagPicker(page,ok,fixtureURL,passed);
  await page.goto(fixtureURL);await ok('connect');

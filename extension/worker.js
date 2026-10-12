@@ -220,7 +220,7 @@ async function panel(message, permission) {
       await remember(tabId,targetFrame);
       if (targetFrame!==0) await page(tabId,0,'tag-guide');
     }
-    const results = await Promise.allSettled((action==='pick' && ['destination','tag'].includes(message.mode) ? [targetFrame] : frames.get(tabId).allowed).map(id => page(tabId,id,action,{mode:message.mode,ruleId:message.ruleId})));
+    const results = await Promise.allSettled((action==='pick' && ['destination','tag'].includes(message.mode) ? [targetFrame] : frames.get(tabId).allowed).map(id => page(tabId,id,action,{mode:message.mode,ruleId:message.ruleId,source:message.source})));
     if (results.every(r=>r.status === 'rejected')) {
       if (message.mode==='tag') await page(tabId,0,'cancel').catch(()=>{});
       throw new Error('The page changed. Reopen SwapFont to reconnect.');
@@ -241,7 +241,7 @@ async function panel(message, permission) {
     if(results.some(result=>result.status==='rejected')) throw new Error('A frame changed. Reopen SwapFont to restore the remaining swaps.');
   } else if (['remove','select','tags','tag-options'].includes(action)) {
     if(!frames.get(tabId).allowed.includes(message.frameId)) throw new Error('This frame is no longer available. Pick text again.');
-    const result=await page(tabId,message.frameId,action,{ruleId:message.ruleId,tags:message.tags});
+    const result=await page(tabId,message.frameId,action,{ruleId:message.ruleId,tags:message.tags,source:message.source});
     if(action==='tag-options') return result;
     if(action==='select') { await remember(tabId,message.frameId); await Promise.allSettled(frames.get(tabId).allowed.map(id=>page(tabId,id,'cancel'))); }
   } else if (['source','apply','compare'].includes(action)) {

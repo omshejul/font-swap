@@ -8,7 +8,7 @@
   let active = false, compared = false, applied = false, picking = null, status = 'Pick text on the page';
   let revision = 0, styleRevision = 0, cssRule = '', owned = [], warnings = [], records = [], roots = [], rules = [];
   let pending = Promise.resolve(), timer, highlighted = null, highlightStyle, mutating = false, dirty = false;
-  let tooltip = null, tooltipFont, tooltipTag, pickerBadge = null, badgeLabel = null, badgeHint = null, pickRuleId = '', failureMessage = '';
+  let tooltip = null, tooltipFont, tooltipTag, pickerBadge = null, badgeLabel = null, badgeHint = null, pickRuleId = '', pickRuleSource = '', failureMessage = '';
   let loadingBadge = null, loadingLabel, loadingToken = null, loadingFamily = '';
   let attentionOverlay = null, attentionTint, attentionOutline, badgeAttention, attentionTimer, attentionAnimations = [];
   const attentionTiming = {page:500, dialogue:400, delay:100, exit:200, reduced:500};
@@ -79,6 +79,14 @@
   }
   function ruleFor(record) { return record && rules.findLast(rule=>matchesRule(record,rule)); }
   function selectedRule() { return rules.find(rule=>rule.id===selectedRuleId); }
+  function tagRule(id, expectedSource) {
+    const rule=rules.find(rule=>rule.id===id);
+    if (rule) return rule;
+    if (id==='draft' && source && !selectedRuleId && expectedSource===source) {
+      return {id,source,get tags() { return draftTags; },set tags(value) { draftTags=value; }};
+    }
+    throw new Error('This font selection is no longer on the page.');
+  }
   function sync() { active=rules.length>0; applied=active; destination=selectedRule()?.destination || null; }
   function currentState() {
     const fonts = new Map(); for (const r of records.filter(r=>!r.protected)) fonts.set(r.family,(fonts.get(r.family)||0)+1);
@@ -210,7 +218,7 @@
   }
   function stopPicking() {
     if (picking || pickerBadge?.isConnected) clearAttention(true);
-    picking=null; pickRuleId=''; unhighlight(); pickerBadge?.remove();
+    picking=null; pickRuleId=pickRuleSource=''; unhighlight(); pickerBadge?.remove();
   }
   function clearAttention(fade=false) {
     clearTimeout(attentionTimer); attentionTimer=null;
@@ -319,10 +327,10 @@
     if (!picking) return;
     const element=locate(event); if (!element) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    const mode=picking, tagRuleId=pickRuleId, visibleRule=!compared && ruleFor(records.find(r=>r.element===element)); stopPicking();
+    const mode=picking, tagRuleId=pickRuleId, tagRuleSource=pickRuleSource, visibleRule=!compared && ruleFor(records.find(r=>r.element===element)); stopPicking();
     serialize(async()=>{
       if (mode==='tag') {
-        const rule=rules.find(rule=>rule.id===tagRuleId); if (!rule) return;
+        let rule; try { rule=tagRule(tagRuleId,tagRuleSource); } catch { return; }
         const tag=element.localName, choices=tagOptions(rule);
         const all=rule.tags==null || (choices.length>0 && choices.every(choice=>rule.tags.includes(choice.tag)));
         const duplicate=!all && rule.tags.includes(tag);
@@ -393,7 +401,8 @@
     }
     if (message.action==='state') { if (!active) scan(); return currentState(); }
     if (message.action==='tag-options') {
-      const rule=rules.find(rule=>rule.id===message.ruleId); if (!rule) throw new Error('This swap is no longer on the page.');
+      const rule=tagRule(message.ruleId,message.source);
+      if (!active) scan();
       return {tags:tagOptions(rule)};
     }
     if (message.action==='failure') { loadingFamily='';failureMessage=status=message.error; return currentState(); }
@@ -401,8 +410,8 @@
     if (['pick','cancel','source','select','remove','undo'].includes(message.action)) loadingFamily='';
     if (message.action==='pick') {
       if (!['source','destination','tag'].includes(message.mode)) throw new Error('Choose what to pick.');
-      if (message.mode==='tag' && !rules.some(rule=>rule.id===message.ruleId)) throw new Error('This swap is no longer on the page.');
-      picking=message.mode; pickRuleId=message.mode==='tag' ? message.ruleId : ''; unhighlight(); showPickerBadge(); showAttention();
+      if (message.mode==='tag') tagRule(message.ruleId,message.source);
+      picking=message.mode; pickRuleId=message.mode==='tag' ? message.ruleId : ''; pickRuleSource=message.mode==='tag' ? source : ''; unhighlight(); showPickerBadge(); showAttention();
       status=message.mode==='tag'?'Click text to pick its tag':message.mode==='source'?'Click text to replace its font':'Click text to use its font'; return currentState();
     }
     if (message.action==='cancel') { stopPicking(); status='Picker cancelled'; return currentState(); }
@@ -426,9 +435,9 @@
       return {revision,styles:[...new Map(chosen.map(r=>[`${r.weight}:${r.style}`,{weight:r.weight,style:r.style}])).values()]};
     } else if (message.action==='preview') await preview(message);
     else if (message.action==='tags') {
-      const rule=rules.find(rule=>rule.id===message.ruleId); if (!rule) throw new Error('This swap is no longer on the page.');
+      const rule=tagRule(message.ruleId,message.source);
       const tags=U.normalizeTags(message.tags);
-      rule.tags=tags; revision++; status='Applied'; await paint();
+      rule.tags=tags; revision++; status=rule.id==='draft'?'Choose a font':'Applied'; await paint();
     }
     else if (message.action==='select') {
       const rule=rules.find(rule=>rule.id===message.ruleId); if(!rule) throw new Error('This swap is no longer on the page.');

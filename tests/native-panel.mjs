@@ -88,8 +88,15 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  assert.match(feedback.body,/^Feedback:\r\n/);assert(!feedback.body.includes('Steps to reproduce'));
  assert.match(feedback.body,/Layout: Side panel/);assert.match(feedback.body,/Website: https:\/\/www.iana.org\r\n/);assert(!feedback.body.includes('/domains/reserved'));
  passed('side-panel feedback link prefills the running version and site origin without URL paths');
+ assert.equal(await panel.evaluate("!!document.querySelector('.pair-source .pair-filter')"),false);
  await page.locator('h1').click();await panel.wait("document.querySelector('.pair-pending') && !document.getElementById('search').disabled");
  assert.equal(await panel.evaluate("document.querySelector('.pair-pending .pair-to').textContent"),'Choose font');
+ assert.match(await panel.evaluate("document.querySelector('.pair-pending .pair-filter').getAttribute('aria-label')"),/^Choose tags for /);
+ await panel.click('.pair-pending .pair-filter');await panel.wait("document.getElementById('tag-filter').matches(':popover-open') && !document.getElementById('tag-search').disabled");
+ await panel.click('#all-tags');await panel.wait("document.querySelector('.tag-summary').textContent==='No tags selected'");
+ await panel.click('.tag-option input[data-tag="h1"]');await panel.wait("document.querySelector('.tag-summary').textContent==='h1' && document.querySelector('.pair-filter').getAttribute('aria-pressed')==='true'");
+ await panel.screenshot('draft-filter-sidepanel.png');
+ await panel.click('.pair-pending .pair-filter');await panel.wait("!document.getElementById('tag-filter').matches(':popover-open')");
  await panel.click('.pair-pending .pair-edit');await panel.wait("document.getElementById('steps').hidden");
  await panel.click('.pair-pending .pair-edit');await panel.wait("!document.getElementById('steps').hidden");
  await worker.evaluate(()=>{const original=fetch;globalThis.__restoreFontFetch=()=>{globalThis.fetch=original;globalThis.__releaseFontFetch();};const gate=new Promise(resolve=>globalThis.__releaseFontFetch=resolve);globalThis.fetch=async(...args)=>{if(String(args[0]).startsWith('https://fonts.'))await gate;return original(...args);};});
@@ -100,6 +107,8 @@ export async function testNativePanel(context,worker,fixtureURL,passed) {
  await worker.evaluate(()=>globalThis.__restoreFontFetch());await firstChoice;
  assert.equal(await panel.evaluate("document.getElementById('note').classList.contains('is-loading')"),false);
  assert.match(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontFamily),/FontSwap_/);
+ assert.equal(await panel.evaluate("document.querySelector('.tag-summary').textContent"),'h1');
+ passed('native sidebar shows the draft filter before choosing a font and carries chosen tags into the first swap');
  passed('font download shows an inline spinner in its accordion and clears it after applying');
  passed('a page state update between native pointer press and release preserves the result and applies the font');
  assert.equal(await panel.evaluate("!!document.getElementById('apply') || !!document.getElementById('compare')"),false);
