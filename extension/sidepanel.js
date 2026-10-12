@@ -195,6 +195,11 @@ function scheduleConnect() {
 const sourceKey = (s) => (s && s.source ? `${s.frameId}:${s.selectedRuleId || s.source}` : '');
 const pairKey = rule => rule.id === 'draft' ? `${rule.frameId}:${rule.source}` : ruleKey(rule);
 const destinationName = (destination) => (destination && destination.family) || '';
+function findFilterRule(target) {
+  return state?.rules.find(rule => ruleKey(rule) === ruleKey(target)) ||
+    (target.id === 'draft' && !state?.selectedRuleId && state?.source === target.source && state.frameId === target.frameId
+      ? {...target,tags:state.tags} : null);
+}
 
 function setState(next) {
   const previous = state;
@@ -221,7 +226,7 @@ function setState(next) {
   if (!next.picking && pickedTagRule?.started) {
     const target = pickedTagRule;
     pickedTagRule = null;
-    const rule = next.rules.find(rule => ruleKey(rule) === ruleKey(target));
+    const rule = findFilterRule(target);
     if (rule) openTagFilter(rule);
   }
 }
@@ -251,7 +256,7 @@ function render() {
   views.main.dataset.picking = state.picking || '';
   const inline = renderPairs(rules, editing, waitingForSource);
   if (filterRule) {
-    if (blocked || !rules.some(rule => ruleKey(rule) === ruleKey(filterRule))) closeTagFilter();
+    if (blocked || waitingForSource || !findFilterRule(filterRule)) closeTagFilter();
     else { renderTagOptions(); positionTagFilter(); }
   }
 
@@ -327,10 +332,10 @@ function renderPairs(rules, editing, waitingForSource) {
       button.dataset.frameId = rule.frameId;
     }
     header.append(edit);
-    if (!draft) {
+    if (!waiting) {
       const filter = Object.assign(document.createElement('button'), {type:'button',className:'icon-button pair-filter',id:`filter-${rule.frameId}-${rule.id}`,title:'Apply to tags'});
       filter.dataset.action = 'filter'; filter.dataset.ruleId = rule.id; filter.dataset.frameId = rule.frameId;
-      filter.setAttribute('aria-label',`Apply ${to} to specific tags`);
+      filter.setAttribute('aria-label',draft ? `Choose tags for ${from}` : `Apply ${to} to specific tags`);
       filter.setAttribute('aria-haspopup','dialog'); filter.setAttribute('aria-controls','tag-filter');
       filter.setAttribute('aria-expanded',String(Boolean(filterRule && ruleKey(filterRule) === ruleKey(rule))));
       filter.setAttribute('aria-pressed',String(Array.isArray(rule.tags)));
@@ -380,7 +385,7 @@ function positionTagFilter() {
 
 function currentFilterTags() {
   const edit = tagEdits.get(ruleKey(filterRule));
-  return edit ? edit.tags : state.rules.find(rule => ruleKey(rule) === ruleKey(filterRule))?.tags ?? null;
+  return edit ? edit.tags : findFilterRule(filterRule)?.tags ?? null;
 }
 
 function allTagsSelected() {
@@ -423,7 +428,7 @@ function renderTagOptions() {
 async function openTagFilter(rule) {
   const epoch=tabEpoch;
   if (pickedTagRule) { pickedTagRule=null; await run('cancel'); }
-  if (epoch!==tabEpoch || switchingMode || (floating && root.host.hidden) || !state?.rules.some(item=>ruleKey(item)===ruleKey(rule))) return;
+  if (epoch!==tabEpoch || switchingMode || (floating && root.host.hidden) || !findFilterRule(rule)) return;
   if (filterRule && ruleKey(filterRule) === ruleKey(rule)) { closeTagFilter(); return; }
   closeTagFilter(); filterRule = rule;
   const session = ++filterSession;
@@ -433,7 +438,7 @@ async function openTagFilter(rule) {
   els.tagOptions.replaceChildren(Object.assign(document.createElement('p'), {className:'tag-empty',textContent:'Loading tags…'}));
   $(`filter-${rule.frameId}-${rule.id}`).setAttribute('aria-expanded','true');
   els.tagFilter.showPopover(); positionTagFilter();
-  const response = await send('tag-options',{ruleId:rule.id,frameId:rule.frameId});
+  const response = await send('tag-options',{ruleId:rule.id,frameId:rule.frameId,source:rule.source});
   if (session !== filterSession) return;
   els.tagSearch.disabled = els.allTags.disabled = els.pickTag.disabled = false;
   tagChoices = response.tags || [];
@@ -445,8 +450,11 @@ function updateTags(tags) {
   const target = filterRule, key = ruleKey(target), epoch = tabEpoch, edit = {tags};
   tagEdits.set(key,edit); els.tagError.hidden = true; renderTagOptions();
   tagQueue = tagQueue.then(async () => {
-    if (epoch !== tabEpoch || tagEdits.get(key) !== edit) return;
-    const response = await send('tags',{ruleId:target.id,frameId:target.frameId,tags});
+    if (epoch !== tabEpoch || tagEdits.get(key) !== edit || !findFilterRule(target)) {
+      if (tagEdits.get(key) === edit) tagEdits.delete(key);
+      return;
+    }
+    const response = await send('tags',{ruleId:target.id,frameId:target.frameId,source:target.source,tags});
     if (tagEdits.get(key) === edit) tagEdits.delete(key);
     if (response.stale) return;
     if (response.ok && response.state) setState(response.state);
@@ -603,6 +611,10 @@ els.undo.addEventListener('click', () => run('undo'));
 els.another.addEventListener('click', () => run('pick', { mode: 'source' }));
 els.pickDest.addEventListener('click', () => run('pick', { mode: 'destination' }));
 
+els.pairs.addEventListener('pointerdown', event => {
+  const button=event.target.closest('button[data-action="filter"]');
+  if (button) button.dataset.filterOpen=String(els.tagFilter.matches(':popover-open') && filterRule && button.dataset.ruleId===filterRule.id && Number(button.dataset.frameId)===filterRule.frameId);
+});
 els.pairs.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button || busy) return;
@@ -613,6 +625,7 @@ els.pairs.addEventListener('click', async (event) => {
   }
   if (button.dataset.action.startsWith('draft-')) {
     if (state.picking) await run('cancel');
+    if (button.dataset.action === 'draft-remove' && Array.isArray(state.tags)) await run('tags',{ruleId:'draft',frameId:state.frameId,source:state.source,tags:null});
     if (button.dataset.action === 'draft-remove') { dismissedKey = sourceKey(state); doneKey = dismissedKey; }
     else doneKey = button.getAttribute('aria-expanded') === 'true' ? sourceKey(state) : '';
     render();
@@ -620,10 +633,14 @@ els.pairs.addEventListener('click', async (event) => {
     return;
   }
   const payload = { ruleId: button.dataset.ruleId, frameId: Number(button.dataset.frameId) };
-  const rule = state.rules.find((entry) => String(entry.id) === payload.ruleId && entry.frameId === payload.frameId);
+  const rule = findFilterRule({...payload,id:payload.ruleId,source:state.source});
   if (busy || !rule) return;
   payload.ruleId = rule.id;
-  if (button.dataset.action === 'filter') { openTagFilter(rule); return; }
+  if (button.dataset.action === 'filter') {
+    if (event.detail && button.dataset.filterOpen==='true') closeTagFilter(true);
+    else openTagFilter(rule);
+    return;
+  }
   if (button.dataset.action === 'select') {
     if (button.getAttribute('aria-expanded') === 'true') {
       if (state.picking) await run('cancel');
@@ -652,7 +669,7 @@ els.allTags.addEventListener('click',() => updateTags(allTagsSelected() ? [] : n
 els.pickTag.addEventListener('click',async () => {
   if (!filterRule) return;
   pickedTagRule = {...filterRule,started:false};
-  if (!await run('pick',{mode:'tag',ruleId:filterRule.id,frameId:filterRule.frameId})) pickedTagRule = null;
+  if (!await run('pick',{mode:'tag',ruleId:filterRule.id,frameId:filterRule.frameId,source:filterRule.source})) pickedTagRule = null;
 });
 els.tagOptions.addEventListener('change',event => {
   const tag = event.target.dataset.tag;
