@@ -47,4 +47,4 @@ Keep the existing Limited Use certifications. Data is used for font identificati
 
 Version 0.6.9 is published publicly. These refreshed listing assets and copy are prepared for a separate metadata review. Submission evidence is recorded after Google acknowledges it.
 
-Promo video: https://www.youtube.com/watch?v=GQ9ZjuzLIzw, titled "SwapFont | Preview fonts on live web pages".
+Promo video: https://www.youtube.com/watch?v=DnZMNZLbrLo, titled "SwapFont | Preview fonts on live web pages".
